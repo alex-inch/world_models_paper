@@ -20,7 +20,7 @@ from wm.agent import Agent
 from wm.controller import Controller
 from wm.envs import CONTROLLER_TRAINING_ENV_SPEC
 from wm.rnn import MDNRNN
-from wm.utils import load_rnn, load_vae, normalise_obs, prep_obs
+from wm.utils import crop_obs, load_rnn, load_vae, normalise_obs
 from wm.vae import VAE
 
 ENV_ID = "CarRacing-v3"
@@ -32,7 +32,7 @@ step_rnn = nnx.jit(MDNRNN.step)
 def prepare_obs(
     obs: Shaped[np.ndarray, "Batch H W C"],
 ) -> Shaped[Array, "Batch 64 64 3"]:
-    return jnp.asarray(normalise_obs(prep_obs(obs)))
+    return jnp.asarray(normalise_obs(crop_obs(obs)))
 
 
 def make_call_controllers(graphdef):

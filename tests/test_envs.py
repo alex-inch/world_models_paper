@@ -2,7 +2,7 @@ import numpy as np
 from gymnasium.envs.box2d.car_racing import CarRacing
 
 from wm.envs import ControllerTrainingCarRacing
-from wm.utils import prep_obs
+from wm.utils import crop_obs
 
 
 def test_controller_training_renderer_preserves_model_inputs_and_dynamics() -> None:
@@ -16,7 +16,7 @@ def test_controller_training_renderer_preserves_model_inputs_and_dynamics() -> N
             training_obs, _ = training.reset(seed=seed)
 
             np.testing.assert_array_equal(
-                prep_obs(reference_obs), prep_obs(training_obs)
+                crop_obs(reference_obs), crop_obs(training_obs)
             )
 
             for _ in range(25):
@@ -47,7 +47,7 @@ def test_controller_training_renderer_preserves_model_inputs_and_dynamics() -> N
                 assert truncated == training_truncated
                 np.testing.assert_array_equal(reference_obs[:84], training_obs[:84])
                 np.testing.assert_array_equal(
-                    prep_obs(reference_obs), prep_obs(training_obs)
+                    crop_obs(reference_obs), crop_obs(training_obs)
                 )
     finally:
         reference.close()

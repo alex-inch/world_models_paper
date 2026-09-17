@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from wm.utils.obs import normalise_obs, prep_obs, unnormalise_obs
+from wm.utils.obs import crop_obs, normalise_obs, unnormalise_obs
 
 
 def test_normalise_obs_in_bounds():
@@ -26,19 +26,19 @@ def test_unnormalise_obs_in_bounds():
 
 def test_prep_obs_batched():
     mock_obs = np.zeros(shape=(1, 96, 96, 3))
-    assert prep_obs(mock_obs).shape == (1, 64, 64, 3)
+    assert crop_obs(mock_obs).shape == (1, 64, 64, 3)
 
 
 def test_prep_obs_unbatched():
     mock_obs = np.zeros(shape=(96, 96, 3))
-    assert prep_obs(mock_obs).shape == (64, 64, 3)
+    assert crop_obs(mock_obs).shape == (64, 64, 3)
 
 
 def test_prep_obs_raises_wrong_shape():
     with pytest.raises(ValueError):
         # too many
-        prep_obs(np.ones(shape=(1, 1, 1, 1, 1)))
+        crop_obs(np.ones(shape=(1, 1, 1, 1, 1)))
 
     with pytest.raises(ValueError):
         # too few
-        prep_obs(np.ones(shape=(1, 1)))
+        crop_obs(np.ones(shape=(1, 1)))

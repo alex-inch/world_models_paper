@@ -9,7 +9,7 @@ from tqdm import tqdm, trange
 
 from wm import Agent
 from wm.initializer import cauchy_initializer
-from wm.utils import normalise_obs, prep_obs
+from wm.utils import crop_obs, normalise_obs
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 ENV_ID = "CarRacing-v3"
@@ -49,7 +49,7 @@ def collect_rollout(
     init_stddev = 0.01 * np.random.uniform(0, 1)
     agent = Agent(rngs=nnx.Rngs(seed), kernel_init=cauchy_initializer(init_stddev))
     states, _ = envs.reset(seed=seed)
-    o = prep_obs(states)
+    o = crop_obs(states)
     # Instantiate data containers for a give rollout - which we'll then append to our
     # persistent data store
     num_envs = envs.num_envs
@@ -62,7 +62,7 @@ def collect_rollout(
     for t in trange(1000, desc="Steps", position=1, leave=False):
         a, carry = agent(normalise_obs(o), carry)  # type: ignore
         states, _rewards, _truncateds, _terminateds, _infos = envs.step(np.array(a))
-        o = prep_obs(states)
+        o = crop_obs(states)
 
         # We shift the observation by one (recording 1,001) so we
         # can store both the initial and final observation
