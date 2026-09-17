@@ -1,7 +1,14 @@
+from collections.abc import Callable
+
 import chex
 import jax
 import jax.numpy as jnp
+import numpy as np
+from gymnasium.vector import VectorEnv
 from jaxtyping import Array, Bool, Float, Int
+from loguru import logger
+
+from wm.utils.obs import crop_obs, normalise_obs
 
 from .wm.world_model import DreamerBatch
 
@@ -112,3 +119,48 @@ def get_batch(state, batch_size, seq_length, key):
         reward=state.rewards[batch_indices, time_indices],
         is_first=jnp.zeros((batch_size, seq_length), dtype=jnp.bool_),
     )
+
+
+def collect_new_rollouts(
+    buffer: BufferState,
+    envs: VectorEnv,
+    policy: Callable[[Array, Array], Array],
+    num_eps: int,
+    key: Array,
+) -> BufferState:
+    # Technically this function overfills if num_eps doesn't neatly divide by num_envs.
+    num_envs = envs.num_envs
+    assert envs.spec is not None
+    assert envs.spec.max_episode_steps is not None
+    max_timesteps = envs.spec.max_episode_steps
+    logger.info(f"Collecting {num_eps} rollouts with policy '{policy.__name__}'")
+
+    for ep_ix in range(0, num_eps, num_envs):
+        rollout_obs = np.empty(shape=(num_envs, 1000, 64, 64, 3))
+        rollout_acts = np.empty(shape=(num_envs, 1000, 3))
+        rollout_discounts = np.empty(shape=(num_envs, 1000))
+        rollout_rewards = np.empty(shape=(num_envs, 1000))
+
+        obs, _ = envs.reset(seed=ep_ix * 250)
+
+        for t in range(max_timesteps):
+            subkey, key = jax.random.split(key)
+            acts = policy(obs, subkey)
+            obs, rwds, _terminated, _truncated, _infos = envs.step(np.array(acts))
+
+            # TODO: process obs, rewards and acts properly
+            # TODO: also don't really have a proper continue predictor atm...
+            rollout_obs[:num_envs, t] = normalise_obs(crop_obs(obs))
+            rollout_acts[:num_envs, t] = acts
+            rollout_discounts[:num_envs, t] = 0.997
+            rollout_rewards[:num_envs, t] = rwds[0]
+
+        buffer = add_episodes(
+            buffer,
+            rollout_obs,
+            rollout_acts,
+            rollout_discounts,
+            rollout_rewards,
+        )
+
+    return buffer
