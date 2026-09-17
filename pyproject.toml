@@ -16,6 +16,7 @@ dependencies = [
     "ipykernel>=7.3.0",
     "jax>=0.10.1",
     "jaxtyping>=0.3.10",
+    "loguru>=0.7.3",
     "matplotlib>=3.10.9",
     "mediapy>=1.2.6",
     "opencv-python==4.12.0.88",
