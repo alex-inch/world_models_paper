@@ -41,6 +41,7 @@ packages = ["src/wm"]
 
 [tool.ruff]
 ignore = ["F722"] # irritating error with jaxtyping
+preview = true # turns on ruff: ignore comments
 
 [tool.pyrefly]
 preset = "default"

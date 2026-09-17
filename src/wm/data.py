@@ -59,15 +59,6 @@ class RNNSource(grain.RandomAccessDataSource):
         self.mus: zarr.Array = z[f"latents/{vae_name}/mu"]  # type: ignore
         self.logvars: zarr.Array = z[f"latents/{vae_name}/logvar"]  # type: ignore
 
-        if self.acts.ndim != 3 or self.mus.ndim != 3 or self.logvars.ndim != 3:
-            raise ValueError("RNN arrays must have shapes [episode, time, features]")
-        if self.mus.shape != self.logvars.shape:
-            raise ValueError("mu and logvar arrays must have the same shape")
-        if self.acts.shape[0] != self.mus.shape[0]:
-            raise ValueError("action and latent arrays must have the same episode count")
-        if self.mus.shape[1] != self.acts.shape[1] + 1:
-            raise ValueError("each episode must have one more latent than action")
-
         self.latent_dim = self.mus.shape[2]
         self.action_dim = self.acts.shape[2]
 

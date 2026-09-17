@@ -47,9 +47,7 @@ def collect_rollout(
     seed: int, envs: gym.vector.VectorEnv
 ) -> tuple[np.ndarray, np.ndarray]:
     init_stddev = 0.01 * np.random.uniform(0, 1)
-    agent = Agent(
-        rngs=nnx.Rngs(seed), kernel_init=cauchy_initializer(init_stddev)
-    )
+    agent = Agent(rngs=nnx.Rngs(seed), kernel_init=cauchy_initializer(init_stddev))
     states, _ = envs.reset(seed=seed)
     o = prep_obs(states)
     # Instantiate data containers for a give rollout - which we'll then append to our
@@ -63,7 +61,7 @@ def collect_rollout(
 
     for t in trange(1000, desc="Steps", position=1, leave=False):
         a, carry = agent(normalise_obs(o), carry)  # type: ignore
-        states, rewards, truncateds, terminateds, infos = envs.step(np.array(a))
+        states, _rewards, _truncateds, _terminateds, _infos = envs.step(np.array(a))
         o = prep_obs(states)
 
         # We shift the observation by one (recording 1,001) so we
@@ -99,6 +97,7 @@ def main(num_envs: int = 16, run_name: str = "vae"):
                 # Save the rollouts to the persistent stores
                 obs.append(rollout_obs)
                 act.append(rollout_act)
+
                 outer.update(num_envs)
     finally:
         envs.close()
