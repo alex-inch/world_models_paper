@@ -41,7 +41,7 @@ class RSSM(nnx.Module):
         # latent dimension
         logits = rearrange(logits, "B (N K) -> B N K", N=self.cfg.num_latent_dists)
         probs = nnx.softmax(logits, axis=-1)
-        B, N, K = logits.shape
+        B, N, _K = logits.shape
 
         draw = self.rngs.categorical(logits, axis=-1, shape=(B, N))
         draw = nnx.one_hot(draw, self.cfg.num_latent_classes)
@@ -96,12 +96,18 @@ class RSSM(nnx.Module):
         chex.assert_equal_shape_prefix([embedding, action, is_first], 2)
         chex.assert_axis_dimension(embedding, 2, self.cfg.embedding_dim)
         chex.assert_axis_dimension(action, 2, self.cfg.action_dim)
-        B, T, E = embedding.shape
+        B, _T, _E = embedding.shape
 
         state = self.initialize_state(B)
         _, out = self.unroll(state, (embedding, action, is_first))
 
         hidden, latent, prior, posterior = out
+
+        # unwrap the latent and posterior into N categorical distributions of K classes
+        N = self.cfg.num_latent_dists
+        K = self.cfg.num_latent_classes
+        prior = rearrange(prior, "... (N K) -> ... N K", N=N, K=K)
+        posterior = rearrange(posterior, "... (N K) -> ... N K", N=N, K=K)
         return RSSMOut(hidden=hidden, prior=prior, posterior=posterior, latent=latent)
 
 
@@ -112,7 +118,8 @@ class Encoder(nnx.Module):
         # The original implementation has branches for both images (CNNs) and proprioception (MLPs). Since we're only
         # solving car racing I've simplified it to just the image path.
         # fmt: off
-        conv_params: dict[str, Any] = dict(kernel_size=(4, 4), strides=2, padding="VALID", rngs=rngs)
+        # ruff: ignore[unnecessary-collection-call]
+        conv_params: dict[str, Any] = dict(kernel_size=(4, 4), strides=2, padding="VALID", rngs=rngs)  
         self.layers= nnx.Sequential(
             nnx.Conv(in_features=cfg.img_channels, out_features=48,  **conv_params),  # 31 x 31
             cfg.activation_fn,
@@ -138,6 +145,7 @@ class Decoder(nnx.Module):
         rngs: nnx.Rngs,
     ):
         in_feat = cfg.wm_hidden_dim + cfg.latent_dim
+        # ruff: ignore[unnecessary-collection-call]
         conv_params: dict[str, Any] = dict(strides=2, padding="VALID", rngs=rngs)
         self.layers = nnx.Sequential(
             nnx.Linear(in_feat, 384, rngs=rngs),  # 1x1
