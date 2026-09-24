@@ -16,7 +16,7 @@ HIDDEN_DIM = 50
 def get_data(rngs) -> DreamerBatch:
     imgs = rngs.normal((BATCH_SIZE, SEQ_LENGTH, 64, 64, N_CHANNELS))
     reward = rngs.normal((BATCH_SIZE, SEQ_LENGTH))
-    discount = rngs.normal((BATCH_SIZE, SEQ_LENGTH))
+    cont = rngs.normal((BATCH_SIZE, SEQ_LENGTH))
     action = rngs.normal((BATCH_SIZE, SEQ_LENGTH, ACTION_DIM))
     is_first = jnp.zeros((BATCH_SIZE, SEQ_LENGTH), dtype=jnp.bool)
     is_first = is_first.at[:, 0].set(True)
@@ -25,7 +25,7 @@ def get_data(rngs) -> DreamerBatch:
     return DreamerBatch(
         image=imgs,
         reward=reward,
-        discount=discount,
+        cont=cont,
         prev_action=action,
         is_first=is_first,
     )
@@ -59,7 +59,7 @@ def test_world_model_shapes(run_wm):
         N_CHANNELS,
     )
     assert out.reward.shape == (BATCH_SIZE, SEQ_LENGTH)
-    assert out.discount.shape == (BATCH_SIZE, SEQ_LENGTH)
+    assert out.cont.shape == (BATCH_SIZE, SEQ_LENGTH)
     assert out.latent_prior.shape == (BATCH_SIZE, SEQ_LENGTH, cfg.latent_dim)
     assert out.latent_posterior.shape == (BATCH_SIZE, SEQ_LENGTH, cfg.latent_dim)
     assert out.latent_sample.shape == (BATCH_SIZE, SEQ_LENGTH, cfg.latent_dim)

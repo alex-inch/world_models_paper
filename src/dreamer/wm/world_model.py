@@ -1,5 +1,4 @@
 import chex
-import jax.numpy as jnp
 from einops import rearrange
 from flax import nnx
 from jaxtyping import Array, Shaped
@@ -13,7 +12,7 @@ from .rssm import RSSM, Decoder, Encoder
 class DreamerBatch:
     image:         Shaped[Array, "B T H W C"]
     reward:        Shaped[Array, "B T"]
-    discount:      Shaped[Array, "B T"]
+    cont:          Shaped[Array, "B T"]
     prev_action:   Shaped[Array, "B T A"]
     is_first:      Shaped[Array, "B T"]
 
@@ -31,7 +30,7 @@ class DreamerWMOut:
     #   R - hidden dimension of recurrent network
     image:            Shaped[Array, "B T H W C"]  # p(x_t | h_t, z_t)
     reward:           Shaped[Array, "B T"]        # p(r_t | h_t, z_t)
-    discount:         Shaped[Array, "B T"]        # p(ɣ_t | h_t, z_t)
+    cont:             Shaped[Array, "B T"]        # p(ɣ_t | h_t, z_t)
     latent_prior:     Shaped[Array, "B T Z"]      # p(z_t | h_t)
     latent_posterior: Shaped[Array, "B T Z"]      # p(z_t | h_t, x_t)
     latent_sample:    Shaped[Array, "B T Z"]      # z ~ p(z_t | h_t, x_t)
@@ -45,21 +44,20 @@ class DreamerWM(nnx.Module):
         self.decoder = Decoder(cfg=cfg, rngs=rngs)
         self.rssm = RSSM(cfg=cfg, rngs=rngs)
 
-        self.pred_layer = nnx.Linear(cfg.wm_hidden_dim + cfg.latent_dim, 2, rngs=rngs)
+        state_dims = cfg.wm_hidden_dim + cfg.latent_dim
+        self.continue_pred = nnx.Linear(state_dims, 1, rngs=rngs)
+        self.reward_pred = nnx.Linear(state_dims, cfg.reward_encoding_bins, rngs=rngs)
 
-    def predict_reward_and_gamma(
+    def predict_reward_and_continue(
         self, joint_latent: Shaped[Array, "B T Z+H"]
-    ) -> tuple[Shaped[Array, "B T"], ...]:
-        scalars = self.pred_layer(joint_latent)
-        reward, gamma = jnp.split(scalars, 2, axis=-1)
+    ) -> tuple[Shaped[Array, "B T K"], Shaped[Array, "B T"]]:
+        cont = self.continue_pred(joint_latent)
+        reward = self.reward_pred(joint_latent)
 
-        # Scale discount into the range [0, 1].
-        gamma = nnx.sigmoid(gamma)
-
-        # Remove singleton final dimension
-        reward = rearrange(reward, "... 1 -> ...")
-        gamma = rearrange(gamma, "... 1 -> ...")
-        return reward, gamma
+        # Remove singleton final dimension. Note we're returning `cont` as logits instead of
+        # passing it through a sigmoid - for more numerically stable loss computation.
+        cont = rearrange(cont, "... 1 -> ...")
+        return reward, cont
 
     def __call__(self, input: DreamerBatch) -> DreamerWMOut:
         embedding = self.encoder(input.image)
@@ -67,11 +65,11 @@ class DreamerWM(nnx.Module):
 
         joint_latent = wm_pred.joint_latent
         image_pred = self.decoder(joint_latent)
-        reward_pred, discount_pred = self.predict_reward_and_gamma(joint_latent)
+        reward_pred, cont_pred = self.predict_reward_and_continue(joint_latent)
         return DreamerWMOut(
             image=image_pred,
             reward=reward_pred,
-            discount=discount_pred,
+            cont=cont_pred,
             latent_prior=wm_pred.prior,
             latent_posterior=wm_pred.posterior,
             latent_sample=wm_pred.latent,
