@@ -21,6 +21,7 @@ class DreamerConfig:
     td_lambda: float = 0.9
     agent_hidden_dim: int = 100
     discount: float = 0.997
+    reward_encoding_bins: int = 19
 
     @property
     def latent_dim(self) -> int:
