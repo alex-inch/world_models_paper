@@ -40,11 +40,11 @@ class BufferState:
 
 
 def init_buffer(
-    capacity: int = 1000,
-    seq_len: int = 1001,
+    capacity: int = 100,
+    seq_length: int = 1001,
     action_dim: int = 3,
 ) -> BufferState:
-    N, T, H, W, C = capacity, seq_len, 64, 64, 3
+    N, T, H, W, C = capacity, seq_length, 64, 64, 3
 
     return BufferState(
         cursor=jnp.asarray(0, dtype=jnp.int32),
@@ -89,25 +89,32 @@ def add_episodes(
 
 
 @jax.jit(static_argnames=["batch_size", "seq_length"])
-def get_batch(state, batch_size, seq_length, key):
+def get_batch(state: BufferState, batch_size: int, seq_length: int, key: Array):
+    # First we select episodes. For each episode, selected, sample a sequence uniformly in the range
+    # between [0,ep_end], where ep_end is marked by the first instance of the continue value going to
+    # zero (cont looks like [1,1,1,0,0,0])
     ep_key, seq_key = jax.random.split(key)
 
     episode_indices = jax.random.randint(
-        ep_key,
-        shape=(batch_size,),
-        minval=0,
-        maxval=state.num_eps,
+        ep_key, shape=(batch_size,), minval=0, maxval=state.num_eps
     )
 
-    T = state.obs.shape[1]
+    T = state.episode_length
+    selected_conts = state.conts[episode_indices]
+    # The first zero marks the end of the episode.
+    episode_ends = jnp.min(
+        jnp.where(selected_conts == 0, jnp.arange(T), T - 1), axis=-1
+    )
 
     seq_starts = jax.random.randint(
         seq_key,
         shape=(batch_size,),
         minval=0,
-        maxval=T - seq_length + 1,
+        maxval=episode_ends - seq_length + 2,
     )
 
+    # This is a bit vestigial. The original Dreamer implementation uses it to pack multiple sequences into one
+    # batch, but my implementation only uses it for the first steps of the batch
     is_first = jnp.zeros((batch_size, seq_length), dtype=jnp.bool)
     is_first = is_first.at[:, 0].set(True)
 
