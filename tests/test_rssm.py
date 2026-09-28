@@ -38,8 +38,13 @@ def test_valid_grads():
         "This is not the true loss, just a dummy to check gradient flows"
         embedding, prev_action, is_first = data
         out = rssm(embedding, prev_action, is_first)
-        hidden, latent, prior, posterior = out.to_tuple()  # type: ignore
-        return jnp.mean(hidden**2 + latent**2 + prior**2)
+        hidden, latent, prior, _posterior = out.to_tuple()  # type: ignore
+        per_step_loss = (
+            jnp.mean(hidden**2, axis=-1)
+            + jnp.mean(latent**2, axis=-1)
+            + jnp.mean(prior**2, axis=(-2, -1))
+        )
+        return jnp.mean(jnp.sum(per_step_loss, axis=1))
 
     loss, grads = loss_fn(rssm, inputs)
     # loss is nonzero

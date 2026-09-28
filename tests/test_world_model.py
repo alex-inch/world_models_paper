@@ -58,10 +58,20 @@ def test_world_model_shapes(run_wm):
         cfg.img_width,
         N_CHANNELS,
     )
-    assert out.reward.shape == (BATCH_SIZE, SEQ_LENGTH)
+    assert out.reward.shape == (BATCH_SIZE, SEQ_LENGTH, cfg.reward_encoding_bins)
     assert out.cont.shape == (BATCH_SIZE, SEQ_LENGTH)
-    assert out.latent_prior.shape == (BATCH_SIZE, SEQ_LENGTH, cfg.latent_dim)
-    assert out.latent_posterior.shape == (BATCH_SIZE, SEQ_LENGTH, cfg.latent_dim)
+    assert out.latent_prior.shape == (
+        BATCH_SIZE,
+        SEQ_LENGTH,
+        cfg.num_latent_dists,
+        cfg.num_latent_classes,
+    )
+    assert out.latent_posterior.shape == (
+        BATCH_SIZE,
+        SEQ_LENGTH,
+        cfg.num_latent_dists,
+        cfg.num_latent_classes,
+    )
     assert out.latent_sample.shape == (BATCH_SIZE, SEQ_LENGTH, cfg.latent_dim)
     assert out.hidden.shape == (BATCH_SIZE, SEQ_LENGTH, HIDDEN_DIM)
 
