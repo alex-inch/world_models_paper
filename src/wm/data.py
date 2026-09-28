@@ -59,6 +59,13 @@ class RNNSource(grain.RandomAccessDataSource):
         self.mus: zarr.Array = z[f"latents/{vae_name}/mu"]  # type: ignore
         self.logvars: zarr.Array = z[f"latents/{vae_name}/logvar"]  # type: ignore
 
+        expected_latent_shape = (self.acts.shape[0], self.acts.shape[1] + 1)
+        if (
+            self.mus.shape[:2] != expected_latent_shape
+            or self.logvars.shape[:2] != expected_latent_shape
+        ):
+            raise ValueError("Each episode must have one more latent than action")
+
         self.latent_dim = self.mus.shape[2]
         self.action_dim = self.acts.shape[2]
 
