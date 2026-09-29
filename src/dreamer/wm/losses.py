@@ -6,6 +6,7 @@ from jaxtyping import Array, Shaped
 
 from dreamer.preprocessing import get_bins, symlog, twohot_encode
 
+from .config import DreamerWMLosses
 from .world_model import DreamerBatch, DreamerWMOut
 
 
@@ -55,14 +56,6 @@ def twohot_loss(preds, x):
     reward_loss = optax.softmax_cross_entropy(preds.reward, true_reward_encoded)
     reward_loss = reward_loss.mean()
     return reward_loss
-
-
-@chex.dataclass
-class DreamerWMLosses:
-    image_loss: Shaped[Array, ""]
-    reward_loss: Shaped[Array, ""]
-    continue_loss: Shaped[Array, ""]
-    kl_loss: Shaped[Array, ""]
 
 
 def dreamer_wm_loss_fn(

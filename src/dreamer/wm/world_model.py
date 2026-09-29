@@ -1,41 +1,12 @@
 import chex
+import optax
 from einops import rearrange
 from flax import nnx
 from jaxtyping import Array, Shaped
 
-from .config import DreamerConfig
+from .config import DreamerBatch, DreamerConfig, DreamerWMLosses, DreamerWMOut
+from .losses import compute_balanced_kl, nll, twohot_loss
 from .rssm import RSSM, Decoder, Encoder
-
-
-# fmt: off
-@chex.dataclass
-class DreamerBatch:
-    image:         Shaped[Array, "B T H W C"]
-    reward:        Shaped[Array, "B T"]
-    cont:          Shaped[Array, "B T"]
-    prev_action:   Shaped[Array, "B T A"]
-    is_first:      Shaped[Array, "B T"]
-
-
-@chex.dataclass
-class DreamerWMOut: 
-    # Dim definitions
-    #   B - batch
-    #   T - timestep
-    #   H - image height
-    #   W - image width
-    #   C - image channels
-    #   N - number of latent categorical distributions
-    #   K - number of classes per latent categorical distribution
-    #   R - hidden dimension of recurrent network
-    image:            Shaped[Array, "B T H W C"]  # p(x_t | h_t, z_t)
-    reward:           Shaped[Array, "B T"]        # p(r_t | h_t, z_t)
-    cont:             Shaped[Array, "B T"]        # p(ɣ_t | h_t, z_t)
-    latent_prior:     Shaped[Array, "B T Z"]      # p(z_t | h_t)
-    latent_posterior: Shaped[Array, "B T Z"]      # p(z_t | h_t, x_t)
-    latent_sample:    Shaped[Array, "B T Z"]      # z ~ p(z_t | h_t, x_t)
-    hidden:           Shaped[Array, "B T R"]      # f(h_t | h_t1, z_t1, a_t1)
-# fmt: on
 
 
 class DreamerWM(nnx.Module):
@@ -76,5 +47,28 @@ class DreamerWM(nnx.Module):
             hidden=wm_pred.hidden,
         )
 
+    @staticmethod
+    def loss_fn(
+        preds: DreamerWMOut, x: DreamerBatch, kl_alpha: float
+    ) -> DreamerWMLosses:
+        "Compute all the losses for the Dreamer world model, returning an object containing each one."
+        chex.assert_rank(x.image, 5)  # ensure batch and time dimension are present
 
-# Loss funcs for DreamerV2
+        image_loss = nll(preds.image, x.image)
+        continue_loss = optax.sigmoid_binary_cross_entropy(preds.cont, x.cont).mean()
+
+        # Symlog + twohot encoded reward
+        reward_loss = twohot_loss(preds, x)
+
+        kl_loss = compute_balanced_kl(
+            preds.latent_posterior, preds.latent_prior, kl_alpha
+        )
+
+        chex.assert_rank([image_loss, reward_loss, continue_loss, kl_loss], 0)
+
+        return DreamerWMLosses(
+            image_loss=image_loss,
+            reward_loss=reward_loss,
+            continue_loss=continue_loss,
+            kl_loss=kl_loss,
+        )
