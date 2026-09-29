@@ -1,5 +1,5 @@
-import numpy as np
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 from dreamer.actor_critic import compute_td_lambda_returns
@@ -40,9 +40,7 @@ def test_td_lambda_scan_matches_explicit_n_step_returns():
     rewards = np.array(
         [[1.0, -0.5, 2.0, 0.25], [-1.0, 0.75, 0.5, 1.5]], dtype=np.float32
     )
-    continues = np.array(
-        [[1.0, 1.0, 1.0, 1.0], [1.0, 0.0, 1.0, 1.0]], dtype=np.float32
-    )
+    continues = np.array([[1.0, 1.0, 1.0, 1.0], [1.0, 0.0, 1.0, 1.0]], dtype=np.float32)
     values = np.array(
         [[0.2, 1.5, -0.3, 0.8, 2.0], [0.4, -0.7, 1.2, 0.1, -1.0]],
         dtype=np.float32,
