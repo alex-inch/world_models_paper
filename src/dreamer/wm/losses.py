@@ -1,3 +1,4 @@
+from dreamer.wm import DreamerConfig
 import chex
 import distrax
 import jax
@@ -49,28 +50,28 @@ def compute_balanced_kl(
     return kl.mean()
 
 
-def twohot_loss(preds, x):
-    n_bins = preds.reward.shape[-1]
+def twohot_loss(preds, x, max_exp=9):
+    "Compute the symexp categorical loss described in Dreamerv3."
+    B = get_bins(n_bins=preds.reward.shape[-1], max_exp=max_exp)
     r_scaled = symlog(x.reward)
-    true_reward_encoded = twohot_encode(r_scaled, B=get_bins(n_bins))
+    true_reward_encoded = twohot_encode(r_scaled, B=B)
     reward_loss = optax.softmax_cross_entropy(preds.reward, true_reward_encoded)
     reward_loss = reward_loss.mean()
     return reward_loss
 
 
 def dreamer_wm_loss_fn(
-    preds: DreamerWMOut, x: DreamerBatch, kl_alpha: float
+    preds: DreamerWMOut, x: DreamerBatch, cfg: DreamerConfig
 ) -> DreamerWMLosses:
     "Compute all the losses for the Dreamer world model, returning an object containing each one."
     chex.assert_rank(x.image, 5)  # ensure batch and time dimension are present
 
     image_loss = nll(preds.image, x.image)
     continue_loss = optax.sigmoid_binary_cross_entropy(preds.cont, x.cont).mean()
-
-    # Symlog + twohot encoded reward
-    reward_loss = twohot_loss(preds, x)
-
-    kl_loss = compute_balanced_kl(preds.latent_posterior, preds.latent_prior, kl_alpha)
+    reward_loss = twohot_loss(preds, x, cfg.reward_encoding_max_exp)
+    kl_loss = compute_balanced_kl(
+        preds.latent_posterior, preds.latent_prior, cfg.kl_alpha
+    )
 
     chex.assert_rank([image_loss, reward_loss, continue_loss, kl_loss], 0)
 

@@ -1,15 +1,14 @@
+import jax
 import jax.numpy as jnp
-from einops import einsum, rearrange
+from einops import einsum
 from jaxtyping import Array, ArrayLike, Shaped
 
 
-def get_bins(n_classes=19):
+def get_bins(n_bins=127, max_exp=9):
     "Construct the vector of bins B used in twohot encoding."
-    assert n_classes % 2 == 1  # should be odd for how this is being constructed.
-    minval = -(n_classes // 2)
-    maxval = n_classes // 2
-    B = jnp.arange(minval, maxval + 1)
-    return B
+    assert n_bins % 2 == 1  # should be odd for how this is being constructed.
+    half = n_bins // 2
+    return jnp.arange(-half, half + 1, dtype=jnp.float32) / half * max_exp
 
 
 def twohot_encode(
@@ -20,23 +19,20 @@ def twohot_encode(
 
     The input to this function should be in symlog space for Dreamer-style reward scaling.
 
-    This function also assumes that bins in B have a constant spacing of 1.
+    B must contain at least two strictly increasing bin centres. Values outside
+    the bin range are clipped to its endpoints.
     """
-    # This implementation works by computing the distance between x and the bin centroids.
-    # We say that, for centroid Bi, |x - Bi| gives the unsigned distance to the centroid. If we take
-    # 1 - |x - Bi|, we'll get values in [0, 1] for the two closest centroids, or a negative
-    # number otherwise. By setting negative numbers to 0 we get a two hot encoding.
-    # To reason about it - consider the case where x is directly on a centroid, or equidistant between two.
-    # Note that in general, we'd need to divide by the distance between centroids (x - Bi / w), but we just fix it to 1 for this.
-    # Idk if there's a better way to do it, this is just what I cooked up.
+    x = jnp.clip(x, B[0], B[-1])
+    hi = jnp.clip(jnp.searchsorted(B, x, side="right"), 1, B.size - 1)
+    lo = hi - 1
 
-    # Set up axes so each reward gets broadcast to the N classes
-    # assert B[1] - B[0] == 1
-
-    x_bc = rearrange(x, "... -> ... 1")
-    distances = 1 - jnp.abs(x_bc - B)  # broadcasts [... 1] - [N] -> [... N]
-    encoding = jnp.maximum(distances, 0)
-    return encoding
+    # Use the enclosing bins' actual spacing: even an evenly spaced grid has
+    # slightly different interval widths after rounding to float32.
+    w_hi = (x - B[lo]) / (B[hi] - B[lo])
+    return (
+        jax.nn.one_hot(lo, B.size) * (1 - w_hi[..., None])
+        + jax.nn.one_hot(hi, B.size) * w_hi[..., None]
+    )
 
 
 def twohot_decode(

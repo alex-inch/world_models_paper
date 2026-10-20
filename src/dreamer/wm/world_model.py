@@ -26,7 +26,7 @@ class DreamerWM(nnx.Module):
         reward = self.reward_pred(joint_latent)
 
         # Remove singleton final dimension. Note we're returning `cont` as logits instead of
-        # passing it through a sigmoid - for more numerically stable loss computation.
+        # passing it through a sigmoid for more numerically stable loss computation.
         cont = rearrange(cont, "... 1 -> ...")
         return reward, cont
 
@@ -49,19 +49,18 @@ class DreamerWM(nnx.Module):
 
     @staticmethod
     def loss_fn(
-        preds: DreamerWMOut, x: DreamerBatch, kl_alpha: float
+        preds: DreamerWMOut,
+        x: DreamerBatch,
+        cfg: DreamerConfig,
     ) -> DreamerWMLosses:
         "Compute all the losses for the Dreamer world model, returning an object containing each one."
         chex.assert_rank(x.image, 5)  # ensure batch and time dimension are present
 
         image_loss = nll(preds.image, x.image)
         continue_loss = optax.sigmoid_binary_cross_entropy(preds.cont, x.cont).mean()
-
-        # Symlog + twohot encoded reward
-        reward_loss = twohot_loss(preds, x)
-
+        reward_loss = twohot_loss(preds, x, cfg.reward_encoding_max_exp)
         kl_loss = compute_balanced_kl(
-            preds.latent_posterior, preds.latent_prior, kl_alpha
+            preds.latent_posterior, preds.latent_prior, cfg.kl_alpha
         )
 
         chex.assert_rank([image_loss, reward_loss, continue_loss, kl_loss], 0)
