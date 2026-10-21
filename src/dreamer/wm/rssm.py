@@ -13,14 +13,17 @@ from .config import DreamerConfig
 
 @chex.dataclass
 class RSSMOut:
+    """Stores the state and outputs of each step of the RSSM. The posterior, which represents the updated
+    latent distribution p(z) given an image, should be non-null over real data, and None during imagination."""
+
     hidden: Shaped[Array, "B T H"]
-    latent: Shaped[Array, "B T Z"]
+    latent_sample: Shaped[Array, "B T Z"]
     prior: Shaped[Array, "B T Z"]
-    posterior: Shaped[Array, "B T Z"]
+    posterior: Shaped[Array, "B T Z"] | None = None
 
     @property
     def joint_latent(self) -> Shaped[Array, "B T Z+H"]:
-        return jnp.concatenate([self.hidden, self.latent], axis=-1)
+        return jnp.concatenate([self.hidden, self.latent_sample], axis=-1)
 
 
 class RSSM(nnx.Module):
@@ -73,8 +76,8 @@ class RSSM(nnx.Module):
         )
         prev_hidden, prev_latent = state
 
-        gru_input, _ = pack([prev_latent, prev_action], "B *")
-        hidden, _ = self.gru(prev_hidden, gru_input)
+        gru_in, _ = pack([prev_latent, prev_action], "B *")
+        hidden, _ = self.gru(prev_hidden, gru_in)
 
         prior = self.trans_model(hidden)
         repr_in, _ = pack([hidden, embedding], "B *")
@@ -108,7 +111,50 @@ class RSSM(nnx.Module):
         K = self.cfg.num_latent_classes
         prior = rearrange(prior, "... (N K) -> ... N K", N=N, K=K)
         posterior = rearrange(posterior, "... (N K) -> ... N K", N=N, K=K)
-        return RSSMOut(hidden=hidden, prior=prior, posterior=posterior, latent=latent)
+        return RSSMOut(
+            hidden=hidden, prior=prior, posterior=posterior, latent_sample=latent
+        )
+
+    def init_imagination(self, embedding: Shaped[Array, "B E"]) -> RSSMOut:
+        chex.assert_rank(embedding, 2)
+        B, _E = embedding.shape
+
+        # Compute the first hidden state using the image input
+        initial_hidden, initial_latent = self.initialize_state(B)
+        zero_action = jnp.zeros(shape=(B, self.cfg.action_dim), dtype=embedding.dtype)
+        gru_in, _ = pack([initial_latent, zero_action], "B *")
+        hidden, _ = self.gru(initial_hidden, gru_in)
+
+        # Pass the initial hidden state to the representation model to get the posterior sample z
+        repr_in, _ = pack([hidden, embedding], "B *")
+        posterior_logits = self.repr_model(repr_in)
+        latent = self.sample(posterior_logits)
+
+        prior = self.trans_model(hidden)
+
+        # Reshape
+        N = self.cfg.num_latent_dists
+        K = self.cfg.num_latent_classes
+        prior = rearrange(prior, "... (N K) -> ... N K", N=N, K=K)
+        return RSSMOut(hidden=hidden, latent_sample=latent, prior=prior)
+
+    def imagine_step(self, rssm_state: RSSMOut, action):
+        h, z = rssm_state.hidden, rssm_state.latent_sample
+
+        # Update hidden state
+        gru_in, _ = pack([z, action], "B *")
+        h, _ = self.gru(h, gru_in)
+
+        # Update and sample a new latent
+        prior = self.trans_model(h)
+        z = self.sample(prior)
+
+        # Reshape
+        N = self.cfg.num_latent_dists
+        K = self.cfg.num_latent_classes
+        prior = rearrange(prior, "... (N K) -> ... N K", N=N, K=K)
+        # Note: no posterior because we don't have ground truth images embeddings any more!
+        return RSSMOut(hidden=h, latent_sample=z, prior=prior)
 
 
 class Encoder(nnx.Module):

@@ -1,4 +1,3 @@
-from dreamer.wm import DreamerConfig
 import chex
 import distrax
 import jax
@@ -6,6 +5,7 @@ import optax
 from jaxtyping import Array, Shaped
 
 from dreamer.preprocessing import get_bins, symlog, twohot_encode
+from dreamer.wm import DreamerConfig
 
 from .config import DreamerWMLosses
 from .world_model import DreamerBatch, DreamerWMOut
