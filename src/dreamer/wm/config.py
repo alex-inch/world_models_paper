@@ -1,11 +1,12 @@
 from collections.abc import Callable
+from typing import Literal
 
 import chex
 from flax import nnx
 from jaxtyping import Array, Shaped
 
 
-@chex.dataclass
+@chex.dataclass(mappable_dataclass=False)
 class DreamerConfig:
     "Defines the latent, action, hidden and embedding dimensions for a given model instantiation."
 
@@ -16,7 +17,7 @@ class DreamerConfig:
     img_height: int = 64
     img_width: int = 64
     img_channels: int = 3
-    activation_fn: Callable = nnx.elu
+    activation: Literal["elu", "relu", "gelu"] = "elu"
     kl_alpha: float = 0.8
     kl_beta: float = 0.1
     td_lambda: float = 0.9
@@ -24,6 +25,10 @@ class DreamerConfig:
     discount: float = 0.997
     reward_encoding_bins: int = 127
     reward_encoding_max_exp: int = 9
+
+    @property
+    def activation_fn(self) -> Callable:
+        return getattr(nnx, self.activation)
 
     @property
     def latent_dim(self) -> int:
@@ -36,12 +41,6 @@ class DreamerConfig:
     @property
     def rnn_in_features(self) -> int:
         return self.latent_dim + self.action_dim
-
-
-@chex.dataclass
-class HyperParams:
-    alpha_kl: float = 0.8
-    beta_kl: float = 1.0
 
 
 # fmt: off
