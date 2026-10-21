@@ -12,8 +12,6 @@ from dreamer.truncated_normal import TruncatedNormal
 from dreamer.wm import DreamerWM
 from dreamer.wm.rssm import RSSMOut
 
-type ImaginationCarry = tuple[RSSMOut, Array]
-
 
 @chex.dataclass
 class ImaginationTrajectory:
@@ -27,13 +25,11 @@ class ImaginationTrajectory:
 
 @nnx.scan(in_axes=(None, None, nnx.Carry, 0), out_axes=(nnx.Carry, 1))
 def imagination_step(
-    wm: DreamerWM, actor_critic: ActorCritic, carry: ImaginationCarry, key
-) -> tuple[ImaginationCarry, ImaginationTrajectory]:
-    state, prev_action = carry
-    policy_key, action_sample_key = jax.random.split(key)
+    wm: DreamerWM, actor_critic: ActorCritic, state: RSSMOut, key
+) -> tuple[RSSMOut, ImaginationTrajectory]:
 
-    prediction = actor_critic(state, prev_action, policy_key)
-    action = prediction.action_dist.sample(seed=action_sample_key)
+    prediction = actor_critic(state)
+    action = prediction.action_dist.sample(seed=key)
 
     next_state = wm.imagine_step(state, action)
 
@@ -44,32 +40,28 @@ def imagination_step(
         action_dist=prediction.action_dist,  # would be less overhead to just send the entropy
     )
 
-    next_carry = (next_state, action)
-    return next_carry, output
+    return next_state, output
 
 
 def imagination_rollout(
     wm: DreamerWM,
     actor_critic: ActorCritic,
     initial_state: RSSMOut,
-    prev_action: Shaped[Array, "B A"],
-    key: Shaped[Array, ""],
     horizon: int,
+    key: Shaped[Array, ""],
 ) -> tuple[ImaginationTrajectory, Array, Array]:
     assert initial_state.posterior is None
 
     # TODO(Alex): check how batching works here
-    bootstrap_key, key = jax.random.split(key)
     keys = jax.random.split(key, horizon)
 
     # Run imagination
-    init_carry = (initial_state, prev_action)
-    final_carry, trajectory = imagination_step(wm, actor_critic, init_carry, keys)
+    final_carry, trajectory = imagination_step(wm, actor_critic, initial_state, keys)
 
     # Our trajectory has N actions, but N+1 states - we need to add the final state onto the trajectory
     #  so we get (s0, s1, ..., sT)
-    final_state, last_action = final_carry
-    final_value_pred = actor_critic(final_state, last_action, bootstrap_key).value_pred
+    final_state = final_carry
+    final_value_pred = actor_critic(final_state).value_pred
     trajectory.state = jax.tree.map(
         lambda sequence, final: jnp.concatenate(
             [sequence, final[:, None, ...]], axis=1

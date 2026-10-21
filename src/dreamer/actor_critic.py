@@ -20,13 +20,18 @@ class DreamerActorCriticOut:
 @chex.dataclass
 class DreamerActorCriticLoss:
     critic_loss: Float[Array, ""]
-    actor_loss: Float[Array, ""]
-    loss: Float[Array, ""]
+    actor_reward_loss: Float[Array, ""]
+    actor_entropy_loss: Float[Array, ""]
     target: Float[Array, "Batch Time"]
+
+    @property
+    def loss(self) -> Float[Array, ""]:
+        return self.critic_loss + self.actor_reward_loss + self.actor_entropy_loss
 
 
 class ActorCritic(nnx.Module):
     def __init__(self, cfg: DreamerConfig, rngs: nnx.Rngs):
+        self.cfg = cfg
         input_dim = cfg.latent_dim + cfg.wm_hidden_dim + cfg.action_dim
 
         self.backbone = nnx.Sequential(
@@ -41,7 +46,7 @@ class ActorCritic(nnx.Module):
             cfg.agent_hidden_dim, 2 * cfg.action_dim, rngs=rngs
         )
 
-    def actor(self, z: Float[Array, "... Hidden"], key: Array) -> TruncatedNormal:
+    def actor(self, z: Float[Array, "... Hidden"]) -> TruncatedNormal:
         # Predict Gaussian actions
         action_stats = self.actor_head(z)
         action_mean, action_std = jnp.split(action_stats, 2, axis=-1)
@@ -54,16 +59,11 @@ class ActorCritic(nnx.Module):
 
     def __call__(
         self,
-        latent_state: RSSMOut,
-        prev_action: Float[Array, "... ActionDim"],
-        key: Array,
+        model_state: RSSMOut,
     ) -> DreamerActorCriticOut:
-        z = jnp.concat(
-            [latent_state.hidden, latent_state.latent_sample, prev_action], axis=-1
-        )
-        z = self.backbone(z)
+        z = self.backbone(model_state.joint_latent)
 
-        action_dist = self.actor(z, key)
+        action_dist = self.actor(z)
         value_pred = self.critic_head(z)  # idk if we need to transform this at all?
 
         return DreamerActorCriticOut(
@@ -92,13 +92,14 @@ class ActorCritic(nnx.Module):
         sg = jax.lax.stop_gradient
         critic_loss = squared_error(sg(td_return), values[..., :-1]).mean()
         #  - The actor *maximises* the return, so we return the negative value (which the optimiser will minimise) plus an entropy term
-        actor_loss = -td_return.mean() - 1e-4 * action_dists.entropy().mean()
+        actor_reward_loss = -td_return.mean()
+        actor_entropy_loss = -1e-4 * action_dists.entropy().mean()
 
         return DreamerActorCriticLoss(
             critic_loss=critic_loss,
-            actor_loss=actor_loss,
+            actor_reward_loss=actor_reward_loss,
+            actor_entropy_loss=actor_entropy_loss,
             target=td_return,
-            loss=critic_loss + actor_loss,
         )
 
 
