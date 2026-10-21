@@ -53,3 +53,4 @@ project-includes = [
 
 [tool.pytest.ini_options]
 filterwarnings = ['ignore::DeprecationWarning']
+testpaths = ['tests']
