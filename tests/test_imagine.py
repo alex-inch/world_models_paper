@@ -25,8 +25,7 @@ class ConstantPolicy(nnx.Module):
     def __init__(self):
         self.action = nnx.Param(jnp.asarray(1.0))
 
-    def __call__(self, state, prev_action, key):
-        del prev_action, key
+    def __call__(self, state):
         actions = jnp.broadcast_to(self.action[...], (state.hidden.shape[0], 3))
         return DreamerActorCriticOut(
             action_dist=distrax.Independent(
@@ -57,9 +56,8 @@ def test_rollout_keeps_final_state_and_aligns_transition_rewards(horizon):
             wm,
             policy,
             initial_state(),
-            jnp.zeros((2, 3)),
-            jax.random.key(0),
             horizon,
+            jax.random.key(0),
         )
 
     trajectory, rewards, continues = run(wm, policy)
@@ -82,9 +80,8 @@ def test_reward_gradient_reaches_policy_through_imagination():
             wm,
             policy,
             initial_state(),
-            jnp.zeros((2, 3)),
-            jax.random.key(0),
             3,
+            jax.random.key(0),
         )
         return rewards.mean()
 
