@@ -1,12 +1,12 @@
 import chex
 import jax
 import jax.numpy as jnp
-import optax
 from flax import nnx
 from jaxtyping import Array, Float
+from optax.losses import squared_error
 
 from dreamer.truncated_normal import TruncatedNormal
-from dreamer.wm.world_model import DreamerWMOut
+from dreamer.wm.rssm import RSSMOut
 
 from .wm import DreamerConfig
 
@@ -41,7 +41,7 @@ class ActorCritic(nnx.Module):
             cfg.agent_hidden_dim, 2 * cfg.action_dim, rngs=rngs
         )
 
-    def actor(self, z, key):
+    def actor(self, z: Float[Array, "... Hidden"], key: Array) -> TruncatedNormal:
         # Predict Gaussian actions
         action_stats = self.actor_head(z)
         action_mean, action_std = jnp.split(action_stats, 2, axis=-1)
@@ -54,11 +54,13 @@ class ActorCritic(nnx.Module):
 
     def __call__(
         self,
-        wm_out: DreamerWMOut,
+        latent_state: RSSMOut,
         prev_action: Float[Array, "... ActionDim"],
         key: Array,
     ) -> DreamerActorCriticOut:
-        z = jnp.concat([wm_out.hidden, wm_out.latent_sample, prev_action], axis=-1)
+        z = jnp.concat(
+            [latent_state.hidden, latent_state.latent_sample, prev_action], axis=-1
+        )
         z = self.backbone(z)
 
         action_dist = self.actor(z, key)
@@ -82,19 +84,20 @@ class ActorCritic(nnx.Module):
         chex.assert_shape(continues, (B, T))
         chex.assert_shape(values, (B, T + 1))
 
-        target = compute_td_lambda_returns(cfg, rewards, continues, values)
+        td_return = compute_td_lambda_returns(cfg, rewards, continues, values)
 
-        target = jax.lax.stop_gradient(target)
         # Compute the actor and critic losses:
-        #  - The critic regresses its value predictions towards the TD(lambda) values
-        critic_loss = optax.losses.squared_error(target, values[..., :-1]).mean()
+        #  - The critic regresses its value predictions towards the TD(lambda) values. We ignore
+        #      gradient through the return - it's the actor's job to increase the return, not the critic's
+        sg = jax.lax.stop_gradient
+        critic_loss = squared_error(sg(td_return), values[..., :-1]).mean()
         #  - The actor *maximises* the return, so we return the negative value (which the optimiser will minimise) plus an entropy term
-        actor_loss = -target.mean() - 1e-4 * action_dists.entropy().mean()
+        actor_loss = -td_return.mean() - 1e-4 * action_dists.entropy().mean()
 
         return DreamerActorCriticLoss(
             critic_loss=critic_loss,
             actor_loss=actor_loss,
-            target=target,
+            target=td_return,
             loss=critic_loss + actor_loss,
         )
 
