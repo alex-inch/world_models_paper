@@ -64,6 +64,10 @@ class DreamerWM(nnx.Module):
             hidden=wm_pred.hidden,
         )
 
+    def run_rssm(self, input: DreamerBatch) -> RSSMOut:
+        embedding = self.encoder(input.image)
+        return self.rssm(embedding, input.prev_action, input.is_first)
+
     def init_imagination_state(
         self, image: Shaped[Array, "Batch Height Width Channels"]
     ) -> RSSMOut:

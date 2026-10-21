@@ -89,7 +89,9 @@ def add_episodes(
 
 
 @jax.jit(static_argnames=["batch_size", "seq_length"])
-def get_batch(state: BufferState, batch_size: int, seq_length: int, key: Array):
+def get_batch(
+    state: BufferState, batch_size: int, seq_length: int, key: Array
+) -> DreamerBatch:
     # First we select episodes. For each episode, selected, sample a sequence uniformly in the range
     # between [0,ep_end], where ep_end is marked by the first instance of the continue value going to
     # zero (cont looks like [1,1,1,0,0,0])
