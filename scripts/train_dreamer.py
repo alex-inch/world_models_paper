@@ -3,18 +3,24 @@ from dataclasses import dataclass
 import gymnasium as gym
 import jax
 import jax.numpy as jnp
-import numpy as np
 import optax
-import tyro
 from flax import nnx
 from jax import Array
+from jax.lax import stop_gradient as sg
 from jaxtyping import Float
+from tqdm import trange
 
-from dreamer.actor_critic import ActorCritic
-from dreamer.buffer import BufferState, add_episodes, get_batch, init_buffer
-from dreamer.imagine import ImaginationTrajectory, imagination_rollout
+from dreamer.actor_critic import Actor, Critic
+from dreamer.buffer import (
+    BufferState,
+    collect_new_rollouts,
+    get_batch,
+    init_buffer,
+)
+from dreamer.imagine import run_imagination_rollout
 from dreamer.wm import DreamerBatch, DreamerWM
 from dreamer.wm.config import DreamerConfig
+from dreamer.wm.rssm import RSSMOut
 
 
 @dataclass
@@ -27,22 +33,17 @@ class TrainArgs:
     batch_size: int = 16
     collect_interval: int = 10
     seq_length: int = 50
-    imagination_horizon: int = 10
+    imagination_horizon: int = 15
     lr: float = 2e-4
-
-
-def wm_train_step(wm: DreamerWM): ...
-
-
-def policy_train_step(ac: ActorCritic): ...
+    adamw_eps: float = 1e-5
 
 
 @nnx.value_and_grad(has_aux=True)
-def wm_loss_fn(model: DreamerWM, batch: DreamerBatch):
-    preds = model(batch)
-    losses = model.loss_fn(preds, batch, model.cfg)
+def wm_loss_fn(wm: DreamerWM, batch: DreamerBatch):
+    preds = wm(batch)
+    losses = wm.loss_fn(preds, batch, wm.cfg)
     loss = (
-        model.cfg.kl_beta * losses.kl_loss
+        wm.cfg.kl_beta * losses.kl_loss
         + losses.continue_loss
         + losses.reward_loss
         + losses.image_loss
@@ -51,65 +52,101 @@ def wm_loss_fn(model: DreamerWM, batch: DreamerBatch):
 
 
 @nnx.value_and_grad(has_aux=True)
-def ac_loss_fn(
-    model: ActorCritic,
-    rewards: Float[Array, "B T"],
-    conts: Float[Array, "B T"],
-    rollout: ImaginationTrajectory,
-):
-    losses = model.loss_fn(
-        model.cfg, rewards, conts, rollout.value, rollout.action_dist
-    )
-
-    # Split out the total loss (sum of the actor and critic losses) while returning the object
-    # which contains all the terms for posterity
-    return losses.loss, losses
-
-
-# @nnx.jit(donate_argnames=['world_model', 'wm_optim', 'actor_critic', 'ac_optim'])
-def model_learning_step(
-    world_model: DreamerWM,
-    wm_optim: nnx.Optimizer,
-    actor_critic: ActorCritic,
-    ac_optim: nnx.Optimizer,
-    replay_buffer: BufferState,
+def actor_loss_fn(
+    actor: Actor,
+    critic: Critic,
+    wm: DreamerWM,
+    initial_states: RSSMOut,  # [B H], [B Z]
+    horizon: int,
     key: Array,
 ):
-    # World model learning
+    rollout, rewards, conts = run_imagination_rollout(
+        wm,
+        actor,
+        critic,
+        initial_states,
+        horizon=horizon,
+        key=key,
+    )
+    losses, targets = actor.loss_fn(
+        actor.cfg, rewards, conts, rollout.value, rollout.action_dist
+    )
+    # Split out the data for the critic to use in its loss function
+    critic_data = (sg(rollout.state.joint_latent[:, :-1]), sg(targets))
+    # which contains all the terms for posterity
+    return losses.loss, (losses, critic_data)
+
+
+@nnx.value_and_grad
+def critic_loss_fn(
+    critic: Critic,
+    features: Float[Array, "B T D"],
+    targets: Float[Array, "B T"],
+):
+    values = critic(features)
+    return critic.loss_fn(values, targets)
+
+
+# @nnx.jit(donate_argnames=['wm', 'wm_optim', 'actor', 'actor_optim', 'critic', 'critic_optim'])
+def model_learning_step(
+    wm: DreamerWM,
+    wm_optim: nnx.Optimizer,
+    actor: Actor,
+    actor_optim: nnx.Optimizer,
+    critic: Critic,
+    critic_optim: nnx.Optimizer,
+    replay_buffer: BufferState,
+    args: TrainArgs,
+    key: Array,
+):
     batch_key, imagination_key = jax.random.split(key)
     batch = get_batch(replay_buffer, args.batch_size, args.seq_length, batch_key)
-    (_wm_loss, wm_sub_losses), wm_grads = wm_loss_fn(world_model, batch)
-    wm_optim.update(world_model, wm_grads)
 
-    # Behaviour Learning
-    # TODO(Alex): Should we run this N times, selecting different starting states in the batch?
-    # TODO(Alex): I think maybe this isn't totally right? Should we run up to this point to prime the GRU?
-    #             Just thinking that the images might not be Markovian
-    initial_states = world_model.init_imagination_state(batch.images[:, 0])
-    imagination_key, key = jax.random.split(key)
-    rollout, rewards, conts = imagination_rollout(
-        world_model,
-        actor_critic,
+    # World model learning
+    (wm_loss, wm_sub_losses), wm_grads = wm_loss_fn(wm, batch)
+    wm_optim.update(wm, wm_grads)
+
+    # Behaviour learning
+    batch_model_states = wm.run_rssm(batch)
+    batch_model_states = batch_model_states.replace(posterior=None)  # pyrefly: ignore[missing-attribute]
+
+    initial_states = jax.tree.map(lambda x: sg(x[:, -1]), batch_model_states)
+    aux, actor_grads = actor_loss_fn(
+        actor,
+        critic,
+        wm,
         initial_states,
         horizon=args.imagination_horizon,
         key=imagination_key,
     )
-    (_ac_loss, ac_sub_losses), ac_grads = ac_loss_fn(
-        world_model.cfg, rewards, conts, rollout.value, rollout.action_dist
-    )
-    ac_optim.update(actor_critic, ac_grads)
+    actor_optim.update(actor, actor_grads)
+    actor_loss, (actor_losses, critic_data) = aux
+    states, targets = critic_data
 
-    return {"wm_losses": wm_sub_losses, "ac_losses": ac_sub_losses}
+    critic_loss, critic_grads = critic_loss_fn(critic, states, targets)
+    critic_optim.update(critic, critic_grads)
 
-
-# @nnx.jit()
-def get_action(
-    world_model: DreamerWM, actor_critic: ActorCritic, batch: DreamerBatch, action_key
-):
-    wm_state = world_model.run_rssm(batch)
-    ac_pred = actor_critic(wm_state)
-    action_sample = ac_pred.action_dist.sample(seed=action_key)
-    return action_sample
+    # Some bookkeeping variables to track training
+    return {
+        # WM Variables
+        "wm/losses/loss": wm_loss,
+        "wm/losses/image_loss": wm_sub_losses.image_loss,
+        "wm/losses/reward_loss": wm_sub_losses.reward_loss,
+        "wm/losses/continue_loss": wm_sub_losses.continue_loss,
+        "wm/losses/kl_loss": wm_sub_losses.kl_loss,
+        "wm/grad_norm": optax.tree.norm(wm_grads),
+        "wm/grad_max": optax.tree.norm(wm_grads, jnp.inf),
+        # Actor Critic Variables
+        "ac/targets": targets,
+        "ac/actor/loss": actor_loss,
+        "ac/actor/reward_loss": actor_losses.reward_loss,
+        "ac/actor/entropy_loss": actor_losses.entropy_loss,
+        "ac/actor/grad_norm": optax.tree.norm(actor_grads),
+        "ac/actor/grad_max": optax.tree.norm(actor_grads, jnp.inf),
+        "ac/critic/loss": critic_loss,
+        "ac/critic/grad_norm": optax.tree.norm(critic_grads),
+        "ac/critic/grad_max": optax.tree.norm(critic_grads, jnp.inf),
+    }
 
 
 def main(args: TrainArgs):
@@ -120,45 +157,53 @@ def main(args: TrainArgs):
     replay_buffer = init_buffer(capacity=args.buffer_size)
 
     # Init the models and their optimisers. For now just use a shared learning rate
-    world_model = DreamerWM(cfg=args.cfg, rngs=nnx.Rngs(20))
-    wm_optim = nnx.Optimizer(world_model, tx=optax.adam(args.lr), wrt=nnx.Param)
-    actor_critic = ActorCritic(cfg=args.cfg, rngs=nnx.Rngs(21))
-    ac_optim = nnx.Optimizer(actor_critic, tx=optax.adam(args.lr), wrt=nnx.Param)
+    # fmt: off
+    wm           = DreamerWM(cfg=args.cfg, rngs=nnx.Rngs(20))
+    actor        = Actor(cfg=args.cfg,     rngs=nnx.Rngs(21))
+    critic       = Critic(cfg=args.cfg,    rngs=nnx.Rngs(22))
+
+    tx = optax.adamw(args.lr, eps=args.adamw_eps)
+    wm_optim     = nnx.Optimizer(wm,     tx=tx, wrt=nnx.Param)
+    actor_optim  = nnx.Optimizer(actor,  tx=tx, wrt=nnx.Param)
+    critic_optim = nnx.Optimizer(critic, tx=tx, wrt=nnx.Param)
+    # fmt: on
 
     key = jax.random.key(42)
 
-    for i in range(args.outer_train_steps):
+    all_losses = []
+    for i in trange(args.outer_train_steps):
+        # Environment Interaction
+        action_key, key = jax.random.split(key)
+
+        replay_buffer = collect_new_rollouts(
+            replay_buffer,
+            envs,
+            wm,
+            actor,
+            num_eps=args.num_envs,
+            key=action_key,
+        )
+
         # Model Learning
         for update_step in range(args.collect_interval):
             # Dynamics Learning
-            key, subkey = jax.random.split(key)
-            losses = model_learning_step(
-                world_model, wm_optim, actor_critic, ac_optim, replay_buffer, subkey
+            subkey, key = jax.random.split(key)
+            step_losses = model_learning_step(
+                wm,
+                wm_optim,
+                actor,
+                actor_optim,
+                critic,
+                critic_optim,
+                replay_buffer,
+                args,
+                subkey,
             )
-
-        # Environment Interaction
-        obs, _infos = envs.reset()
-        # construct fake batch for the first step
-        action = jnp.zeros(shape=(envs.num_envs, world_model.cfg.action_dim))
-        reward = jnp.zeros(shape=(envs.num_envs,))
-        cont = jnp.ones(shape=(envs.num_envs,))
-        is_first = jnp.ones(shape=(envs.num_envs,)).astype(jnp.bool)
-        batch = DreamerBatch(obs, reward, cont, action, is_first)
-
-        for t in range(1000):
-            action_key, key = jax.random.split(key)
-            action_sample = get_action(world_model, batch, action, action_key)
-            action_sample = np.array(action_sample)  # convert from JAX
-            _next_obs, rewards, terminations, truncations, _infos = envs.step(
-                action_sample
-            )
-
-            # If terminated or truncated 0, otherwise 1
-            cont = 1 - jnp.logical_or(terminations, truncations).astype(jnp.int32)
-
-            replay_buffer = add_episodes(replay_buffer, obs, action, cont, rewards)
+            all_losses.append(step_losses)
 
 
 if __name__ == "__main__":
+    import tyro
+
     args = tyro.cli(TrainArgs)
     main(args)
