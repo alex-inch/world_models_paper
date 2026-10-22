@@ -1,13 +1,15 @@
-from collections.abc import Callable
-
 import chex
 import jax
 import jax.numpy as jnp
 import numpy as np
+from flax import nnx
 from gymnasium.vector import VectorEnv
 from jaxtyping import Array, Bool, Float, Int
 from loguru import logger
 
+from dreamer.actor_critic import Actor
+from dreamer.wm import DreamerWM
+from dreamer.wm.rssm import RSSMOut
 from wm.utils.obs import crop_obs, normalise_obs
 
 from .wm.world_model import DreamerBatch
@@ -134,48 +136,102 @@ def get_batch(
     )
 
 
+@nnx.jit
+def choose_action(
+    world_model: DreamerWM,
+    actor: Actor,
+    carry: tuple[Array, Array],
+    image: Array,
+    prev_action: Array,
+    is_first: Array,
+    key: Array,
+) -> tuple[tuple[Array, Array], Array]:
+    """Get the policy's action, based on the world_model's recurrent state."""
+    embedding = world_model.encoder(image)
+    carry, outputs = world_model.rssm.unroll(
+        carry,
+        (embedding[:, None], prev_action[:, None], is_first[:, None]),
+    )
+    hidden, latent, prior, posterior = jax.tree.map(lambda x: x[:, 0], outputs)
+    shape = (
+        image.shape[0],
+        world_model.cfg.num_latent_dists,
+        world_model.cfg.num_latent_classes,
+    )
+    state = RSSMOut(
+        hidden=hidden,
+        latent_sample=latent,
+        prior=prior.reshape(shape),
+        posterior=posterior.reshape(shape),
+    )
+    action_dist = actor(state.joint_latent)
+    return carry, action_dist.sample(seed=key)
+
+
 def collect_new_rollouts(
     buffer: BufferState,
     envs: VectorEnv,
-    policy: Callable[[Array, Array], Array],
+    world_model: DreamerWM,
+    actor: Actor,
     num_eps: int,
     key: Array,
 ) -> BufferState:
-    # Technically this function overfills if num_eps doesn't neatly divide by num_envs.
+    # Technically this function overfills if num_eps doesn't neatly divide by num_envs. But too much
+    # data is rarely a bad thing
     num_envs = envs.num_envs
+    max_timesteps = buffer.episode_length - 1
+    action_dim = world_model.cfg.action_dim
+    logger.info(f"Collecting {num_eps} rollouts of {max_timesteps} transitions")
 
-    assert envs.spec is not None
-    assert envs.spec.max_episode_steps is not None
-    max_timesteps = envs.spec.max_episode_steps
-    logger.info(f"Collecting {num_eps} rollouts with policy '{policy.__name__}'")
+    for _ in range(0, num_eps, num_envs):
+        rollout_obs = np.zeros(
+            (num_envs, buffer.episode_length, *buffer.obs.shape[2:]), dtype=np.float32
+        )
+        rollout_acts = np.zeros(
+            (num_envs, buffer.episode_length, action_dim), dtype=np.float32
+        )
+        rollout_conts = np.zeros((num_envs, buffer.episode_length), dtype=np.float32)
+        rollout_rewards = np.zeros_like(rollout_conts)
 
-    for ep_ix in range(0, num_eps, num_envs):
-        rollout_obs = np.zeros(shape=(num_envs, 1001, 64, 64, 3))
-        rollout_acts = np.zeros(shape=(num_envs, 1001, 3))
-        rollout_conts = np.zeros(shape=(num_envs, 1001))
-        rollout_rewards = np.zeros(shape=(num_envs, 1001))
-
-        obs, _ = envs.reset(seed=ep_ix * 250)
-        # The first entry for each episode is the initial state. Note we're implicitly setting the initial action and reward to zero, these
-        # correspond to the action and reward "before" the initial state, so that's fine.
-        rollout_obs[:, 0] = normalise_obs(crop_obs(obs))
+        reset_key, key = jax.random.split(key)
+        seed = int(jax.random.randint(reset_key, (), 0, np.iinfo(np.int32).max))
+        obs, _ = envs.reset(seed=seed)
+        image = normalise_obs(crop_obs(obs)) - 0.5
+        # The first entry for each episode is the initial state. Note we're implicitly
+        # setting the initial action and reward to zero, these correspond to the action
+        # and reward "before" the initial state, so that's fine.
+        rollout_obs[:, 0] = image
         rollout_conts[:, 0] = 1
+        carry = world_model.rssm.initialize_state(num_envs)
+        prev_action = jnp.zeros((num_envs, action_dim), dtype=jnp.float32)
+        is_first = jnp.ones(num_envs, dtype=jnp.bool_)
 
         for t in range(1, max_timesteps + 1):
             subkey, key = jax.random.split(key)
-            acts = policy(obs, subkey)
-            obs, rwds, terminated, truncated, _infos = envs.step(np.array(acts))
+            carry, acts = choose_action(
+                world_model,
+                actor,
+                carry,
+                jnp.asarray(image),
+                prev_action,
+                is_first,
+                subkey,
+            )
+            acts = np.asarray(acts, dtype=np.float32)
+            obs, rwds, terminated, truncated, _infos = envs.step(acts)
+            image = normalise_obs(crop_obs(obs)) - 0.5
 
-            # We store the action a_t and the following observation o_t+1 in the same time step, since that's what
-            # we'll what to exist in a single batch later when we train the model
-            rollout_obs[:, t] = normalise_obs(crop_obs(obs))
+            # We store the action a_t and the following observation o_t+1 in the same
+            # time step, since that's what we'll what to exist in a single batch later when we train
+            rollout_obs[:, t] = image
             rollout_acts[:, t] = acts
             # store raw reward, transform happens in the loss calc
             rollout_rewards[:, t] = rwds
 
             # Add the episode end to train the continue predictor
-            episode_ended = np.logical_or(terminated, truncated)
-            rollout_conts[:, t] = np.where(episode_ended, 0, 1)
+            rollout_conts[:, t] = ~(terminated | truncated)
+            prev_action = jnp.asarray(acts)
+            is_first = jnp.zeros(num_envs, dtype=jnp.bool_)
 
         buffer = add_episodes(
             buffer,
