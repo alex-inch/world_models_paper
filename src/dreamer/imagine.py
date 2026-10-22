@@ -7,7 +7,7 @@ from einops import pack
 from flax import nnx
 from jaxtyping import Array, Float, Shaped
 
-from dreamer.actor_critic import ActorCritic
+from dreamer.actor_critic import Actor, Critic
 from dreamer.truncated_normal import TruncatedNormal
 from dreamer.wm import DreamerWM
 from dreamer.wm.rssm import RSSMOut
@@ -23,29 +23,31 @@ class ImaginationTrajectory:
     action_dist: TruncatedNormal
 
 
-@nnx.scan(in_axes=(None, None, nnx.Carry, 0), out_axes=(nnx.Carry, 1))
+@nnx.scan(in_axes=(None, None, None, nnx.Carry, 0), out_axes=(nnx.Carry, 1))
 def imagination_step(
-    wm: DreamerWM, actor_critic: ActorCritic, state: RSSMOut, key
+    wm: DreamerWM, actor: Actor, critic: Critic, state: RSSMOut, key: Array
 ) -> tuple[RSSMOut, ImaginationTrajectory]:
 
-    prediction = actor_critic(state)
-    action = prediction.action_dist.sample(seed=key)
+    features = state.joint_latent
+    action_dist = actor(features)
+    action = action_dist.sample(seed=key)
 
     next_state = wm.imagine_step(state, action)
 
     output = ImaginationTrajectory(
         state=state,
         action=action,
-        value=prediction.value_pred,
-        action_dist=prediction.action_dist,  # would be less overhead to just send the entropy
+        value=critic(features),
+        action_dist=action_dist,  # would be less overhead to just send the entropy
     )
 
     return next_state, output
 
 
-def imagination_rollout(
+def run_imagination_rollout(
     wm: DreamerWM,
-    actor_critic: ActorCritic,
+    actor: Actor,
+    critic: Critic,
     initial_state: RSSMOut,
     horizon: int,
     key: Shaped[Array, ""],
@@ -56,12 +58,12 @@ def imagination_rollout(
     keys = jax.random.split(key, horizon)
 
     # Run imagination
-    final_carry, trajectory = imagination_step(wm, actor_critic, initial_state, keys)
+    final_carry, trajectory = imagination_step(wm, actor, critic, initial_state, keys)
 
     # Our trajectory has N actions, but N+1 states - we need to add the final state onto the trajectory
     #  so we get (s0, s1, ..., sT)
     final_state = final_carry
-    final_value_pred = actor_critic(final_state).value_pred
+    final_value_pred = critic(final_state.joint_latent)
     trajectory.state = jax.tree.map(
         lambda sequence, final: jnp.concatenate(
             [sequence, final[:, None, ...]], axis=1

@@ -1,9 +1,33 @@
+import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from flax import nnx
 
-from dreamer.actor_critic import compute_td_lambda_returns
+from dreamer.actor_critic import Actor, Critic, compute_td_lambda_returns
 from dreamer.wm import DreamerConfig
+from dreamer.wm.rssm import RSSMOut
+
+
+def test_actor_and_critic_return_bounded_actions_and_scalar_values():
+    cfg = DreamerConfig(
+        wm_hidden_dim=4, num_latent_dists=2, num_latent_classes=2, agent_hidden_dim=8
+    )
+    actor = Actor(cfg, nnx.Rngs(0))
+    critic = Critic(cfg, nnx.Rngs(1))
+    state = RSSMOut(
+        hidden=jnp.zeros((2, 3, 4)),
+        latent_sample=jnp.zeros((2, 3, 4)),
+        prior=jnp.zeros((2, 3, 2, 2)),
+    )
+    action_dist = actor(state.joint_latent)
+    values = critic(state.joint_latent)
+    actions = action_dist.sample(seed=jax.random.key(0))
+    assert actions.shape == (2, 3, 3)
+    assert values.shape == (2, 3)
+    assert action_dist.entropy().shape == (2, 3)
+    assert np.all(np.asarray(actions) >= [-1, 0, 0])
+    assert np.all(np.asarray(actions) <= [1, 1, 1])
 
 
 def reference_td_lambda(rewards, continues, values, discount, lam):

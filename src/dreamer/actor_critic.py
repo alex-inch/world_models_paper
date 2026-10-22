@@ -1,74 +1,45 @@
 import chex
-import jax
 import jax.numpy as jnp
+from einops import rearrange
 from flax import nnx
 from jaxtyping import Array, Float
-from optax.losses import squared_error
 
 from dreamer.truncated_normal import TruncatedNormal
-from dreamer.wm.rssm import RSSMOut
 
 from .wm import DreamerConfig
 
 
 @chex.dataclass
-class DreamerActorCriticOut:
-    action_dist: TruncatedNormal
-    value_pred: Float[Array, "Batch Time"]
-
-
-@chex.dataclass
-class DreamerActorCriticLoss:
-    critic_loss: Float[Array, ""]
-    actor_reward_loss: Float[Array, ""]
-    actor_entropy_loss: Float[Array, ""]
-    target: Float[Array, "Batch Time"]
+class ActorLoss:
+    reward_loss: Float[Array, ""]
+    entropy_loss: Float[Array, ""]
 
     @property
     def loss(self) -> Float[Array, ""]:
-        return self.critic_loss + self.actor_reward_loss + self.actor_entropy_loss
+        return self.reward_loss + self.entropy_loss
 
 
-class ActorCritic(nnx.Module):
+class Actor(nnx.Module):
     def __init__(self, cfg: DreamerConfig, rngs: nnx.Rngs):
         self.cfg = cfg
-        input_dim = cfg.latent_dim + cfg.wm_hidden_dim + cfg.action_dim
+        input_dim = cfg.latent_dim + cfg.wm_hidden_dim
 
-        self.backbone = nnx.Sequential(
+        self.actor_net = nnx.Sequential(
             nnx.Linear(input_dim, cfg.agent_hidden_dim, rngs=rngs),
             cfg.activation_fn,
             nnx.Linear(cfg.agent_hidden_dim, cfg.agent_hidden_dim, rngs=rngs),
             cfg.activation_fn,
+            nnx.Linear(cfg.agent_hidden_dim, 2 * cfg.action_dim, rngs=rngs),
         )
 
-        self.critic_head = nnx.Linear(cfg.agent_hidden_dim, 1, rngs=rngs)
-        self.actor_head = nnx.Linear(
-            cfg.agent_hidden_dim, 2 * cfg.action_dim, rngs=rngs
-        )
-
-    def actor(self, z: Float[Array, "... Hidden"]) -> TruncatedNormal:
-        # Predict Gaussian actions
-        action_stats = self.actor_head(z)
-        action_mean, action_std = jnp.split(action_stats, 2, axis=-1)
-        action_std = jnp.exp(action_std)  # make the standard deviation positive
-
-        # Output Gaussian actions in [-1:1, 0:1, 0:1]
-        lower = jnp.array([-1, 0, 0])
-        upper = jnp.array([1, 1, 1])
-        return TruncatedNormal(action_mean, action_std, lower, upper)
-
-    def __call__(
-        self,
-        model_state: RSSMOut,
-    ) -> DreamerActorCriticOut:
-        z = self.backbone(model_state.joint_latent)
-
-        action_dist = self.actor(z)
-        value_pred = self.critic_head(z)  # idk if we need to transform this at all?
-
-        return DreamerActorCriticOut(
-            action_dist=action_dist,
-            value_pred=value_pred,
+    def __call__(self, x: Float[Array, "... Z+H"]) -> TruncatedNormal:
+        mean, log_std = jnp.split(self.actor_net(x), 2, axis=-1)
+        # Batch the bounds so the imagination scan stacks all distribution parameters consistently.
+        return TruncatedNormal(
+            mean,
+            jnp.exp(log_std),
+            lower=jnp.broadcast_to(jnp.array([-1.0, 0.0, 0.0]), mean.shape),
+            upper=jnp.broadcast_to(jnp.array([1.0, 1.0, 1.0]), mean.shape),
         )
 
     @staticmethod
@@ -78,7 +49,7 @@ class ActorCritic(nnx.Module):
         continues: Float[Array, "Batch Time"],
         values: Float[Array, "Batch Time+1"],
         action_dists: TruncatedNormal,  # Samples are shape [B T A]
-    ) -> DreamerActorCriticLoss:
+    ) -> tuple[ActorLoss, Float[Array, "Batch Time"]]:
         # We need an extra value - one for each transition + the terminal value
         B, T = rewards.shape
         chex.assert_shape(continues, (B, T))
@@ -86,21 +57,40 @@ class ActorCritic(nnx.Module):
 
         td_return = compute_td_lambda_returns(cfg, rewards, continues, values)
 
-        # Compute the actor and critic losses:
-        #  - The critic regresses its value predictions towards the TD(lambda) values. We ignore
-        #      gradient through the return - it's the actor's job to increase the return, not the critic's
-        sg = jax.lax.stop_gradient
-        critic_loss = squared_error(sg(td_return), values[..., :-1]).mean()
-        #  - The actor *maximises* the return, so we return the negative value (which the optimiser will minimise) plus an entropy term
-        actor_reward_loss = -td_return.mean()
-        actor_entropy_loss = -1e-4 * action_dists.entropy().mean()
+        # The actor *maximises* the return, so we return the negative value,
+        # which the optimiser will minimise, plus an entropy term to encourage exploration
+        reward_loss = -td_return.mean()
+        entropy_loss = -1e-4 * action_dists.entropy().mean()
 
-        return DreamerActorCriticLoss(
-            critic_loss=critic_loss,
-            actor_reward_loss=actor_reward_loss,
-            actor_entropy_loss=actor_entropy_loss,
-            target=td_return,
+        return ActorLoss(
+            reward_loss=reward_loss,
+            entropy_loss=entropy_loss,
+        ), td_return
+
+
+class Critic(nnx.Module):
+    def __init__(self, cfg: DreamerConfig, rngs: nnx.Rngs):
+        self.cfg = cfg
+        input_dim = cfg.latent_dim + cfg.wm_hidden_dim
+
+        self.critic_net = nnx.Sequential(
+            nnx.Linear(input_dim, cfg.agent_hidden_dim, rngs=rngs),
+            cfg.activation_fn,
+            nnx.Linear(cfg.agent_hidden_dim, cfg.agent_hidden_dim, rngs=rngs),
+            cfg.activation_fn,
+            nnx.Linear(cfg.agent_hidden_dim, 1, rngs=rngs),
         )
+
+    def __call__(self, features: Float[Array, "... Z+H"]) -> Float[Array, "..."]:
+        value_pred = self.critic_net(features)
+        return rearrange(value_pred, "... 1 -> ...")
+
+    @staticmethod
+    def loss_fn(
+        values: Float[Array, "B T"],
+        targets: Float[Array, "B T"],
+    ):
+        return ((values - targets) ** 2).mean()
 
 
 def compute_td_lambda_returns(
