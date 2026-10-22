@@ -1,5 +1,6 @@
 import chex
 import distrax
+import einops
 import jax
 import optax
 from jaxtyping import Array, Shaped
@@ -21,6 +22,8 @@ def nll(
     # For Gaussians with unit covariance, the logprob is just the mean squared error,
     # and it's more efficient to compute that directly.
     mse = 0.5 * optax.losses.squared_error(pred, true)
+    # sum over pixels
+    mse = einops.reduce(mse, "B T ... -> B T", reduction="sum")
     return mse.mean()
 
 
