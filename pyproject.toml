@@ -45,11 +45,16 @@ ignore = ["F722"] # irritating error with jaxtyping
 preview = true # turns on ruff: ignore comments
 
 [tool.pyrefly]
-preset = "default"
+preset = "strict"
 project-includes = [
     "**/*.py*",
     "**/*.ipynb",
 ]
+
+[tool.pyrefly.errors]
+implicit-any-type-argument = false
+implicit-any-lambda = false
+
 
 [tool.pytest.ini_options]
 filterwarnings = ['ignore::DeprecationWarning']
