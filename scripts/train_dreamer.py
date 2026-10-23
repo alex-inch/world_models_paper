@@ -67,7 +67,7 @@ def wm_loss_fn(wm: DreamerWM, batch: DreamerBatch):
 @nnx.value_and_grad(has_aux=True)
 def actor_loss_fn(
     actor: Actor,
-    critic: Critic,
+    target_critic: Critic,
     wm: DreamerWM,
     initial_states: RSSMOut,  # [B H], [B Z]
     horizon: int,
@@ -76,7 +76,7 @@ def actor_loss_fn(
     rollout, rewards, conts = run_imagination_rollout(
         wm,
         actor,
-        critic,
+        target_critic,
         sg(initial_states),
         horizon=horizon,
         key=key,
@@ -109,6 +109,7 @@ def critic_loss_fn(
         "actor_optim",
         "critic",
         "critic_optim",
+        "target_critic",
     ],
     static_argnames="args",
 )
@@ -119,6 +120,7 @@ def model_learning_step(
     actor_optim: nnx.Optimizer,
     critic: Critic,
     critic_optim: nnx.Optimizer,
+    target_critic: Critic,
     replay_buffer: BufferState,
     args: TrainArgs,
     key: Array,
@@ -141,7 +143,7 @@ def model_learning_step(
     )
     aux, actor_grads = actor_loss_fn(
         actor,
-        critic,
+        target_critic,
         wm,
         initial_states,
         horizon=args.imagination_horizon,
@@ -153,6 +155,16 @@ def model_learning_step(
 
     critic_loss, critic_grads = critic_loss_fn(critic, states, targets, weights)
     critic_optim.update(critic, critic_grads)
+
+    # Update the target network
+    nnx.update(
+        target_critic,
+        optax.incremental_update(
+            new_tensors=nnx.state(critic, nnx.Param),
+            old_tensors=nnx.state(target_critic, nnx.Param),
+            step_size=0.02,
+        ),
+    )
 
     # Some bookkeeping variables to track training
     return {
@@ -261,6 +273,7 @@ def train(args: TrainArgs, envs: gym.vector.VectorEnv, run: wandb.Run):
     wm           = DreamerWM(cfg=args.cfg, rngs=nnx.Rngs(args.seed + 1))
     actor        = Actor(cfg=args.cfg,     rngs=nnx.Rngs(args.seed + 2))
     critic       = Critic(cfg=args.cfg,    rngs=nnx.Rngs(args.seed + 3))
+    target_critic = nnx.clone(critic, arrays=True) # slow version of the critic
 
     tx = optax.chain(
         optax.clip_by_global_norm(100),
@@ -270,6 +283,14 @@ def train(args: TrainArgs, envs: gym.vector.VectorEnv, run: wandb.Run):
     actor_optim  = nnx.Optimizer(actor,  tx=tx, wrt=nnx.Param)
     critic_optim = nnx.Optimizer(critic, tx=tx, wrt=nnx.Param)
     # fmt: on
+
+    parameter_counts = {
+        name: sum(p.size for p in jax.tree.leaves(nnx.state(model, nnx.Param)))
+        for name, model in (("world_model", wm), ("actor", actor), ("critic", critic))
+    }
+    for name, count in parameter_counts.items():
+        logger.info(f"{name}: {count:,} trainable parameters")
+    run.config.update({"parameter_counts": parameter_counts})
 
     key = jax.random.key(args.seed)
 
@@ -300,6 +321,7 @@ def train(args: TrainArgs, envs: gym.vector.VectorEnv, run: wandb.Run):
                 actor_optim,
                 critic,
                 critic_optim,
+                target_critic,
                 replay_buffer,
                 args,
                 subkey,
