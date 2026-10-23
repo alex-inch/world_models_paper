@@ -1,15 +1,20 @@
-from dataclasses import dataclass
+from dataclasses import asdict
+from pprint import pformat
 
+import chex
 import gymnasium as gym
 import jax
 import jax.numpy as jnp
+import numpy as np
 import optax
+from einops import rearrange
 from flax import nnx
 from jax import Array
 from jax.lax import stop_gradient as sg
 from jaxtyping import Float
-from tqdm import trange
+from loguru import logger
 
+import wandb
 from dreamer.actor_critic import Actor, Critic
 from dreamer.buffer import (
     BufferState,
@@ -23,19 +28,27 @@ from dreamer.wm.config import DreamerConfig
 from dreamer.wm.rssm import RSSMOut
 
 
-@dataclass
+@chex.dataclass(frozen=True)  # freeze so it's hashable
 class TrainArgs:
+    # Run config
+    name: str
     cfg: DreamerConfig
+    # Env config
+    seed: int = 20
     num_envs: int = 8
     env_id: str = "CarRacing-v3"
+    # Training hparams
     buffer_size: int = 100
     outer_train_steps: int = 100
     batch_size: int = 16
-    collect_interval: int = 10
-    seq_length: int = 50
-    imagination_horizon: int = 15
-    lr: float = 2e-4
+    seq_length: int = 25
+    lr: float = 1e-4
     adamw_eps: float = 1e-5
+    collect_interval: int = 10
+    imagination_horizon: int = 15
+    steps_per_eval = 5
+    num_eval_episodes: int = 64
+    debug: bool = False
 
 
 @nnx.value_and_grad(has_aux=True)
@@ -64,15 +77,15 @@ def actor_loss_fn(
         wm,
         actor,
         critic,
-        initial_states,
+        sg(initial_states),
         horizon=horizon,
         key=key,
     )
-    losses, targets = actor.loss_fn(
+    losses, targets, weights = actor.loss_fn(
         actor.cfg, rewards, conts, rollout.value, rollout.action_dist
     )
     # Split out the data for the critic to use in its loss function
-    critic_data = (sg(rollout.state.joint_latent[:, :-1]), sg(targets))
+    critic_data = (sg(rollout.state.joint_latent[:, :-1]), sg(targets), weights)
     # which contains all the terms for posterity
     return losses.loss, (losses, critic_data)
 
@@ -82,12 +95,23 @@ def critic_loss_fn(
     critic: Critic,
     features: Float[Array, "B T D"],
     targets: Float[Array, "B T"],
+    weights: Float[Array, "B T"],
 ):
     values = critic(features)
-    return critic.loss_fn(values, targets)
+    return critic.loss_fn(values, targets, weights)
 
 
-# @nnx.jit(donate_argnames=['wm', 'wm_optim', 'actor', 'actor_optim', 'critic', 'critic_optim'])
+@nnx.jit(
+    donate_argnames=[
+        "wm",
+        "wm_optim",
+        "actor",
+        "actor_optim",
+        "critic",
+        "critic_optim",
+    ],
+    static_argnames="args",
+)
 def model_learning_step(
     wm: DreamerWM,
     wm_optim: nnx.Optimizer,
@@ -107,10 +131,14 @@ def model_learning_step(
     wm_optim.update(wm, wm_grads)
 
     # Behaviour learning
-    batch_model_states = wm.run_rssm(batch)
-    batch_model_states = batch_model_states.replace(posterior=None)  # pyrefly: ignore[missing-attribute]
+    model_states = wm.run_rssm(batch)
+    model_states = model_states.replace(posterior=None)  # pyrefly: ignore[missing-attribute]
 
-    initial_states = jax.tree.map(lambda x: sg(x[:, -1]), batch_model_states)
+    # Concat the batch and time dimensions. We'll run the actor in imagination across
+    # all of these in parallel.
+    initial_states = jax.tree.map(
+        lambda x: rearrange(x, "B T ... -> (B T) ..."), model_states
+    )
     aux, actor_grads = actor_loss_fn(
         actor,
         critic,
@@ -121,9 +149,9 @@ def model_learning_step(
     )
     actor_optim.update(actor, actor_grads)
     actor_loss, (actor_losses, critic_data) = aux
-    states, targets = critic_data
+    states, targets, weights = critic_data
 
-    critic_loss, critic_grads = critic_loss_fn(critic, states, targets)
+    critic_loss, critic_grads = critic_loss_fn(critic, states, targets, weights)
     critic_optim.update(critic, critic_grads)
 
     # Some bookkeeping variables to track training
@@ -149,32 +177,108 @@ def model_learning_step(
     }
 
 
-def main(args: TrainArgs):
-    envs = gym.make_vec(
-        id=args.env_id, num_envs=args.num_envs, vectorization_mode="async"
+def format_rollout_gif_data(observations: Float[Array, "T H W C"], fps: int = 50):
+    "Get a jax array of frames into shape for wandb upload"
+    # OG is 50fps - we can downsample a bit to save space
+    frame_skip = 50 // fps
+    if 50 % fps != 0:
+        logger.warning(
+            f"Provided eval GIF FPS {fps} does not neatly divide env fps {50}, using fps {int(50 / frame_skip)}"
+        )
+    frames = np.asarray(observations[::frame_skip])
+    frames_rescaled = 255 * (frames + 0.5)
+    frames_rescaled = np.clip(frames_rescaled, 0, 255).astype(np.uint8)
+    return rearrange(frames_rescaled, "T H W C -> T C H W")
+
+
+def eval_step(
+    envs: gym.vector.VectorEnv,
+    world_model: DreamerWM,
+    actor: Actor,
+    num_eps: int,
+    fps: int = 10,
+):
+    # TODO(Alex): Add imagination gif
+    # TODO(Alex): Add reconstruction gif
+    logger.info("Beginning eval step")
+    key = jax.random.key(500_000)  # Fixed seed for all eval renders
+    buffer = init_buffer(capacity=num_eps)
+    buffer = collect_new_rollouts(
+        buffer, envs, world_model, actor, num_eps=num_eps, key=key
     )
 
+    rollout = format_rollout_gif_data(buffer.obs[0], fps)
+
+    rewards = buffer.rewards  # [T H]
+    returns = rewards.sum(axis=1)
+
+    logger.info(f"Eval step completed with mean return {returns.mean():.2f}")
+    return {
+        "eval/return_mean": float(returns.mean()),
+        "eval/return_median": float(np.median(returns)),
+        "eval/return_std": float(returns.std()),
+        "eval/returns": wandb.Histogram(returns, num_bins=16),  # type: ignore
+        "eval/policy": wandb.Video(
+            rollout,
+            caption=f"Mean Return: {float(returns.mean()):.0f}",
+            fps=fps,
+            format="gif",
+        ),
+    }
+
+
+def setup_logging(args: TrainArgs):
+    if args.debug:  # also disables wandb logging
+        logger.warning("Running in debug mode.")
+        args = args.replace(  # pyrefly: ignore[missing-attribute]
+            outer_train_steps=1,
+            collect_interval=1,
+            batch_size=3,
+            seq_length=5,
+            num_envs=2,
+            num_eval_episodes=2,
+        )
+
+    # WANDB setup
+    run = wandb.init(
+        name=args.name,
+        project="dreamer-reimplementation",
+        config=asdict(args),
+        mode="disabled" if args.debug else "online",
+    )
+    run.define_metric("train_step")
+    run.define_metric("wm/*", step_metric="train_step")
+    run.define_metric("ac/*", step_metric="train_step")
+    run.define_metric("eval/*", step_metric="train_step")
+    return args, run
+
+
+def train(args: TrainArgs, envs: gym.vector.VectorEnv, run: wandb.Run):
     replay_buffer = init_buffer(capacity=args.buffer_size)
 
     # Init the models and their optimisers. For now just use a shared learning rate
     # fmt: off
-    wm           = DreamerWM(cfg=args.cfg, rngs=nnx.Rngs(20))
-    actor        = Actor(cfg=args.cfg,     rngs=nnx.Rngs(21))
-    critic       = Critic(cfg=args.cfg,    rngs=nnx.Rngs(22))
+    wm           = DreamerWM(cfg=args.cfg, rngs=nnx.Rngs(args.seed + 1))
+    actor        = Actor(cfg=args.cfg,     rngs=nnx.Rngs(args.seed + 2))
+    critic       = Critic(cfg=args.cfg,    rngs=nnx.Rngs(args.seed + 3))
 
-    tx = optax.adamw(args.lr, eps=args.adamw_eps)
+    tx = optax.chain(
+        optax.clip_by_global_norm(100),
+        optax.adamw(args.lr, eps=args.adamw_eps),
+    )
     wm_optim     = nnx.Optimizer(wm,     tx=tx, wrt=nnx.Param)
     actor_optim  = nnx.Optimizer(actor,  tx=tx, wrt=nnx.Param)
     critic_optim = nnx.Optimizer(critic, tx=tx, wrt=nnx.Param)
     # fmt: on
 
-    key = jax.random.key(42)
+    key = jax.random.key(args.seed)
 
-    all_losses = []
-    for i in trange(args.outer_train_steps):
+    # Train loop
+    for outer_step in range(args.outer_train_steps):
         # Environment Interaction
         action_key, key = jax.random.split(key)
 
+        logger.info(f"Step {outer_step + 1}: Commencing data collection")
         replay_buffer = collect_new_rollouts(
             replay_buffer,
             envs,
@@ -185,10 +289,11 @@ def main(args: TrainArgs):
         )
 
         # Model Learning
-        for update_step in range(args.collect_interval):
+        logger.info(f"Step {outer_step + 1}: Commencing model learning")
+        for inner_step in range(args.collect_interval):
             # Dynamics Learning
             subkey, key = jax.random.split(key)
-            step_losses = model_learning_step(
+            metrics = model_learning_step(
                 wm,
                 wm_optim,
                 actor,
@@ -199,7 +304,46 @@ def main(args: TrainArgs):
                 args,
                 subkey,
             )
-            all_losses.append(step_losses)
+
+            # Bookkeeping - wandb needs the targets to be a scalar
+            wandb_metrics = jax.device_get(metrics)
+            targets = wandb_metrics.pop("ac/targets")
+            wandb_metrics["ac/target_mean"] = float(targets.mean())
+            train_step = outer_step * args.collect_interval + inner_step + 1
+            wandb_metrics["train_step"] = train_step
+            run.log(wandb_metrics)
+
+            logger.info(f"""Substep {inner_step + 1} complete with key metrics:
+      WM Loss: {metrics["wm/losses/loss"]:.3f}
+   Actor Loss: {metrics["ac/actor/loss"]:.3f}
+  Critic Loss: {metrics["ac/critic/loss"]:.3f}""")
+
+        if outer_step % args.steps_per_eval == 0:
+            eval_metrics = eval_step(envs, wm, actor, args.num_eval_episodes)
+            run.log(eval_metrics)
+
+    # Final run of the eval at the end
+    eval_metrics = eval_step(envs, wm, actor, args.num_eval_episodes)
+    run.log(eval_metrics)
+
+
+def main(args: TrainArgs):
+    args, run = setup_logging(args)
+    args_pprint = pformat(asdict(args), sort_dicts=False)
+    logger.info(f"Beginning training run with args:\n{args_pprint}")
+
+    try:
+        envs = gym.make_vec(
+            id=args.env_id, num_envs=args.num_envs, vectorization_mode="async"
+        )
+        train(args, envs, run)
+    except BaseException:  # BaseException is normally wrong, but ok cos we re-raise
+        run.finish(exit_code=1)
+        raise
+    finally:
+        envs.close()
+    # If no exceptions
+    run.finish(exit_code=0)
 
 
 if __name__ == "__main__":
