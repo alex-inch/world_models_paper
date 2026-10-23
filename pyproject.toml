@@ -30,6 +30,7 @@ dependencies = [
     "tqdm>=4.68.2",
     "types-tqdm>=4.68.0.20260608",
     "tyro>=1.0.14",
+    "wandb[media]>=0.31.0",
     "zarr>=3.2.1",
 ]
 
