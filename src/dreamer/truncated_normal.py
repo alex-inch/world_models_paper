@@ -6,11 +6,26 @@ import chex
 import distrax
 import jax
 import jax.numpy as jnp
-from jax.scipy.special import erfcx, log_ndtr, ndtr, ndtri
+from jax.scipy.special import log_ndtr, ndtr, ndtri
 
 _HALF_LOG_2PI = 0.5 * math.log(2 * math.pi)
-_SQRT_PI_OVER_2 = math.sqrt(math.pi / 2)
-_SQRT_2 = math.sqrt(2)
+
+
+def _mills_ratio(a):
+    """Normal survival probability divided by density, for a >= 0."""
+    near_a = jnp.minimum(a, 8.0)
+    near = jnp.exp(log_ndtr(-near_a) + 0.5 * near_a**2 + _HALF_LOG_2PI)
+
+    # A continued fraction avoids erfcx underflow and subtracting large logs.
+    far_a = jnp.maximum(a, 8.0)
+    terms = 16
+
+    def continued_fraction(i, remainder):
+        return (terms - i) / (far_a + remainder)
+
+    remainder = jax.lax.fori_loop(0, terms, continued_fraction, jnp.zeros_like(a))
+    far = 1 / (far_a + remainder)
+    return jnp.where(a < 8.0, near, far)
 
 
 def _ndtri_from_log_cdf(log_p):
@@ -32,8 +47,8 @@ def _tail_stats(a, width, scale):
     """Mean distance from the nearer bound, entropy, and log mass for a >= 0."""
     b = a + width
     ratio = jnp.exp(-0.5 * width * (a + b))  # phi(b) / phi(a)
-    mills_a = _SQRT_PI_OVER_2 * erfcx(a / _SQRT_2)
-    mills_b = _SQRT_PI_OVER_2 * erfcx(b / _SQRT_2)
+    mills_a = _mills_ratio(a)
+    mills_b = _mills_ratio(b)
     far = (a >= 20) & (a * width > 20)
     integral = jnp.where(far, mills_a, mills_a - ratio * mills_b)
     ordinary_displacement = -jnp.expm1(-0.5 * width * (a + b)) / integral - a
@@ -57,13 +72,13 @@ def _tail_stats(a, width, scale):
 
 def _sample_far_tail(a, width, uniform):
     """Invert the survival ratio relative to a, preserving far-tail precision."""
-    mills_a = _SQRT_PI_OVER_2 * erfcx(a / _SQRT_2)
-    mills_b = _SQRT_PI_OVER_2 * erfcx((a + width) / _SQRT_2)
+    mills_a = _mills_ratio(a)
+    mills_b = _mills_ratio(a + width)
     log_remaining = -0.5 * width * (2 * a + width) + jnp.log(mills_b / mills_a)
     target = jnp.log1p(uniform * jnp.expm1(log_remaining))
 
     def newton_step(_, z):
-        mills_z = _SQRT_PI_OVER_2 * erfcx((a + z) / _SQRT_2)
+        mills_z = _mills_ratio(a + z)
         log_ratio = -a * z - 0.5 * z**2 + jnp.log(mills_z / mills_a)
         return z + (log_ratio - target) * mills_z
 
@@ -249,13 +264,18 @@ class _ScalarTruncatedNormal(distrax.Distribution):
         log_u, log_one_minus_u = jnp.log(u), jnp.log1p(-u)
         log_cdf = jnp.logaddexp(log_ndtr(a) + log_one_minus_u, log_ndtr(b) + log_u)
         log_sf = jnp.logaddexp(log_ndtr(-a) + log_one_minus_u, log_ndtr(-b) + log_u)
-        standard = jnp.where(
-            a >= 0, -_ndtri_from_log_cdf(log_sf), _ndtri_from_log_cdf(log_cdf)
-        )
-        sample = loc + scale * standard
-        width = (upper - lower) / scale
         far_positive = a >= 20
         far_negative = b <= -20
+        # Only invert the selected probability. Unused inverse-CDF branches can
+        # otherwise produce infinite derivatives that leak through jnp.where.
+        log_probability = jnp.where(a >= 0, log_sf, log_cdf)
+        log_probability = jnp.where(
+            far_positive | far_negative, -math.log(2), log_probability
+        )
+        standard = _ndtri_from_log_cdf(log_probability)
+        standard = jnp.where(a >= 0, -standard, standard)
+        sample = loc + scale * standard
+        width = (upper - lower) / scale
         pos_a = jnp.where(far_positive, a, 20.0)
         pos_w = jnp.where(far_positive, width, 1.0)
         neg_a = jnp.where(far_negative, -b, 20.0)
