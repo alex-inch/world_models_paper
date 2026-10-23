@@ -6,7 +6,7 @@ from flax import nnx
 from jaxtyping import Array, Shaped
 
 
-@chex.dataclass(mappable_dataclass=False)
+@chex.dataclass(frozen=True)
 class DreamerConfig:
     "Defines the latent, action, hidden and embedding dimensions for a given model instantiation."
 
@@ -20,7 +20,7 @@ class DreamerConfig:
     activation: Literal["elu", "relu", "gelu"] = "elu"
     kl_alpha: float = 0.8
     kl_beta: float = 0.1
-    td_lambda: float = 0.9
+    td_lambda: float = 0.95
     agent_hidden_dim: int = 100
     discount: float = 0.997
     reward_encoding_bins: int = 127
