@@ -1,6 +1,7 @@
 import chex
+import jax
 import jax.numpy as jnp
-from einops import rearrange
+from einops import pack, rearrange
 from flax import nnx
 from jaxtyping import Array, Float
 
@@ -33,13 +34,21 @@ class Actor(nnx.Module):
         )
 
     def __call__(self, x: Float[Array, "... Z+H"]) -> TruncatedNormal:
-        mean, log_std = jnp.split(self.actor_net(x), 2, axis=-1)
+        raw_mean, raw_std = jnp.split(self.actor_net(x), 2, axis=-1)
+        lower = jnp.array([-1.0, 0.0, 0.0])
+        upper = jnp.array([1.0, 1.0, 1.0])
+        midpoint = (lower + upper) / 2
+        half_range = (upper - lower) / 2
+
+        # Bound the parameters in [-1, 1] coordinates, then rescale for CarRacing.
+        mean = midpoint + half_range * jnp.tanh(raw_mean)
+        std = half_range * (2 * jax.nn.sigmoid(raw_std / 2) + 0.1)
         # Batch the bounds so the imagination scan stacks all distribution parameters consistently.
         return TruncatedNormal(
             mean,
-            jnp.exp(log_std),
-            lower=jnp.broadcast_to(jnp.array([-1.0, 0.0, 0.0]), mean.shape),
-            upper=jnp.broadcast_to(jnp.array([1.0, 1.0, 1.0]), mean.shape),
+            std,
+            lower=jnp.broadcast_to(lower, mean.shape),
+            upper=jnp.broadcast_to(upper, mean.shape),
         )
 
     @staticmethod
@@ -49,7 +58,7 @@ class Actor(nnx.Module):
         continues: Float[Array, "Batch Time"],
         values: Float[Array, "Batch Time+1"],
         action_dists: TruncatedNormal,  # Samples are shape [B T A]
-    ) -> tuple[ActorLoss, Float[Array, "Batch Time"]]:
+    ) -> tuple[ActorLoss, Float[Array, "Batch Time"], Float[Array, "Batch Time"]]:
         # We need an extra value - one for each transition + the terminal value
         B, T = rewards.shape
         chex.assert_shape(continues, (B, T))
@@ -59,13 +68,19 @@ class Actor(nnx.Module):
 
         # The actor *maximises* the return, so we return the negative value,
         # which the optimiser will minimise, plus an entropy term to encourage exploration
-        reward_loss = -td_return.mean()
-        entropy_loss = -1e-4 * action_dists.entropy().mean()
+        # The hardcoded 1e-4 is from the Dreamer paper. TODO(Alex): stick it on the config
+        weights = compute_step_weights(continues, cfg.discount)
+        reward_loss = -(weights * td_return).mean()
+        entropy_loss = -1e-4 * (weights * action_dists.entropy()).mean()
 
-        return ActorLoss(
-            reward_loss=reward_loss,
-            entropy_loss=entropy_loss,
-        ), td_return
+        return (
+            ActorLoss(
+                reward_loss=reward_loss,
+                entropy_loss=entropy_loss,
+            ),
+            td_return,
+            weights,
+        )
 
 
 class Critic(nnx.Module):
@@ -89,8 +104,9 @@ class Critic(nnx.Module):
     def loss_fn(
         values: Float[Array, "B T"],
         targets: Float[Array, "B T"],
+        weights: Float[Array, "B T"],
     ):
-        return ((values - targets) ** 2).mean()
+        return (weights * (values - targets) ** 2).mean()
 
 
 def compute_td_lambda_returns(
@@ -117,3 +133,22 @@ def compute_td_lambda_returns(
     carry = values[..., -1]
     target, _ = _compute_lambda_return(rewards, continues, values[..., 1:], carry)
     return target
+
+
+def compute_step_weights(continues: Float[Array, "B T"], discount: float):
+    """Dreamer discounts subsequent steps contributing to the loss based on their continue
+    prediction. Ie. if we think a step should come *after* the end of an episode (cont_i=0),
+    then we want to disregard any contribution it makes to the loss.
+    """
+    chex.assert_rank(continues, 2)
+    discounts = discount * continues
+    cumulative_discounts = jnp.cumprod(discounts, axis=1)  # cumprod over time dimension
+
+    # the discounts are associated with the probability of proceeding from a state,
+    # but we want weights for the state before. So we offset our array of weights from:
+    # [w0, w1, ..., wT] -> [1, w0, ..., wT-1]
+    B, _T = continues.shape
+    first = jnp.ones(shape=(B, 1))
+    rest = cumulative_discounts[:, :-1]
+    weights, _ = pack([first, rest], "B *")
+    return jax.lax.stop_gradient(weights)
