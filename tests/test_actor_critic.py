@@ -30,6 +30,33 @@ def test_actor_and_critic_return_bounded_actions_and_scalar_values():
     assert np.all(np.asarray(actions) <= [1, 1, 1])
 
 
+def test_actor_extreme_outputs_keep_finite_bounded_parameters_and_gradients():
+    cfg = DreamerConfig(
+        wm_hidden_dim=4, num_latent_dists=2, num_latent_classes=2, agent_hidden_dim=8
+    )
+    actor = Actor(cfg, nnx.Rngs(0))
+    head = actor.actor_net.layers[-1]
+    head.kernel[...] = jnp.zeros_like(head.kernel[...])
+    head.bias[...] = jnp.array([-1000.0, 0.0, 1000.0, -1000.0, 0.0, 1000.0])
+    features = jnp.zeros((2, 3, cfg.latent_dim + cfg.wm_hidden_dim))
+
+    distribution = actor(features)
+    assert np.all(np.asarray(distribution.loc) >= [-1, 0, 0])
+    assert np.all(np.asarray(distribution.loc) <= [1, 1, 1])
+    assert np.all(np.asarray(distribution.scale) >= [0.1, 0.05, 0.05])
+    assert np.all(np.asarray(distribution.scale) <= [2.1, 1.05, 1.05])
+
+    @nnx.jit
+    @nnx.value_and_grad
+    def objective(policy):
+        dist = policy(features)
+        return dist.entropy().mean() + dist.sample(seed=jax.random.key(0)).mean()
+
+    value, gradients = objective(actor)
+    assert np.isfinite(value)
+    assert all(np.isfinite(x).all() for x in jax.tree.leaves(gradients))
+
+
 def reference_td_lambda(rewards, continues, values, discount, lam):
     """Explicitly mix every n-step return at every starting time step."""
     batch_size, length = rewards.shape

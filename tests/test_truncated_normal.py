@@ -60,6 +60,43 @@ def test_mean_and_entropy_match_quadrature():
     np.testing.assert_allclose(narrow.entropy(), narrow_entropy, atol=1e-5)
 
 
+@pytest.mark.parametrize(
+    "loc,scale",
+    [(-6.9822426, 0.53578824), (1.0747013, 0.005731011), (-4.734766, 0.35968032)],
+)
+def test_tail_entropy_matches_quadrature_near_float32_underflow(loc, scale):
+    dist = TruncatedNormal(jnp.array([loc]), scale, 0.0, 1.0)
+    mean, entropy = jax.jit(lambda d: (d.mean(), d.entropy()))(dist)
+    expected_mean, expected_entropy = _quadrature_stats(loc, scale, 0.0, 1.0)
+    np.testing.assert_allclose(mean[0], expected_mean, atol=2e-5)
+    np.testing.assert_allclose(entropy, expected_entropy, atol=2e-4)
+
+
+def test_tail_sampling_and_entropy_have_finite_parameter_gradients():
+    cases = jnp.array([
+        [-5.2631283, 0.0030575027, 0.0],
+        [3.5154953, 0.040833354, 0.0],
+        [1.0747013, 0.005731011, 0.0],
+        [-6.9822426, 0.53578824, 0.0],
+        [-7.1234074, 0.46324959, -1.0],
+        [-5.8106804, 0.04566514, -1.0],
+    ])
+    parameters = jnp.stack([cases[:, 0], jnp.log(cases[:, 1])], axis=-1)
+
+    def objective(theta, lower):
+        dist = TruncatedNormal(jnp.array([theta[0]]), jnp.exp(theta[1]), lower, 1.0)
+        samples = dist.sample(seed=jax.random.key(12), sample_shape=(32,))
+        return samples.mean() + dist.entropy(), samples
+
+    (values, samples), gradients = jax.jit(
+        jax.vmap(jax.value_and_grad(objective, has_aux=True))
+    )(parameters, cases[:, 2])
+    assert np.isfinite(values).all()
+    assert np.isfinite(gradients).all()
+    assert np.all(np.asarray(samples) >= np.asarray(cases[:, 2, None, None]))
+    assert np.all(np.asarray(samples) <= 1.0)
+
+
 def test_sampling_log_prob_and_jax_transforms():
     loc = jnp.array([[0.0, 8.0, -8.0], [0.3, -2.0, 2.0]])
     scale = jnp.ones_like(loc)

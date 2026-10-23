@@ -113,7 +113,7 @@ def test_training_losses_update_only_their_own_module():
         ]
 
     actor_before, critic_before = parameters(actor), parameters(critic)
-    (loss, (_, (features, targets))), grads = actor_loss_fn(
+    (loss, (_, (features, targets, weights))), grads = actor_loss_fn(
         actor, critic, wm, initial_state(), horizon=2, key=jax.random.key(0)
     )
     assert np.isfinite(loss)
@@ -129,7 +129,7 @@ def test_training_losses_update_only_their_own_module():
         np.testing.assert_array_equal(before, after)
 
     actor_after = parameters(actor)
-    loss, grads = critic_loss_fn(critic, features, targets)
+    loss, grads = critic_loss_fn(critic, features, targets, weights)
     assert np.isfinite(loss)
     assert set(grads) == {"critic_net"}
     critic_optim.update(critic, grads)
