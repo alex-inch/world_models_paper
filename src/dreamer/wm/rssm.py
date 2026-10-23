@@ -18,8 +18,8 @@ class RSSMOut:
 
     hidden: Shaped[Array, "B T H"]
     latent_sample: Shaped[Array, "B T Z"]
-    prior: Shaped[Array, "B T Z"]
-    posterior: Shaped[Array, "B T Z"] | None = None
+    prior: Shaped[Array, "B T N K"]
+    posterior: Shaped[Array, "B T N K"] | None = None
 
     @property
     def joint_latent(self) -> Shaped[Array, "B T Z+H"]:
