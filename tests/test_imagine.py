@@ -8,9 +8,9 @@ from flax import nnx
 
 from dreamer.actor_critic import Actor, Critic
 from dreamer.imagine import run_imagination_rollout
+from dreamer.training import actor_objective, critic_objective
 from dreamer.wm import DreamerConfig
 from dreamer.wm.rssm import RSSMOut
-from scripts.train_dreamer import actor_loss_fn, critic_loss_fn
 
 
 class CountingWorldModel(nnx.Module):
@@ -112,8 +112,11 @@ def test_training_losses_update_only_their_own_module():
             np.array(x, copy=True) for x in jax.tree.leaves(nnx.state(model, nnx.Param))
         ]
 
+    actor_value_and_grad = nnx.value_and_grad(actor_objective, has_aux=True)
+    critic_value_and_grad = nnx.value_and_grad(critic_objective)
+
     actor_before, critic_before = parameters(actor), parameters(critic)
-    (loss, (_, (features, targets, weights))), grads = actor_loss_fn(
+    (loss, (_, (features, targets, weights))), grads = actor_value_and_grad(
         actor, critic, wm, initial_state(), horizon=2, key=jax.random.key(0)
     )
     assert np.isfinite(loss)
@@ -129,7 +132,7 @@ def test_training_losses_update_only_their_own_module():
         np.testing.assert_array_equal(before, after)
 
     actor_after = parameters(actor)
-    loss, grads = critic_loss_fn(critic, features, targets, weights)
+    loss, grads = critic_value_and_grad(critic, features, targets, weights)
     assert np.isfinite(loss)
     assert set(grads) == {"critic_net"}
     critic_optim.update(critic, grads)

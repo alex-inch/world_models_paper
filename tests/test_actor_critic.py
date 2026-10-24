@@ -108,6 +108,21 @@ def test_td_lambda_scan_matches_explicit_n_step_returns():
     np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-5)
 
 
+def test_diagnostic_loss_contributions_average_to_training_losses():
+    cfg = DreamerConfig(wm_hidden_dim=4, num_latent_dists=2, num_latent_classes=2, agent_hidden_dim=8)
+    actor = Actor(cfg, nnx.Rngs(0))
+    distribution = actor(jnp.zeros((2, 3, 8)))
+    rewards = jnp.array([[1.0, 2.0, -0.1], [0.0, 0.5, 1.0]])
+    continues = jnp.array([[1.0, 0.9, 0.0], [1.0, 1.0, 1.0]])
+    values = jnp.ones((2, 4))
+    average, targets, weights = Actor.loss_fn(cfg, rewards, continues, values, distribution)
+    contributions, _, _ = Actor.loss_fn(cfg, rewards, continues, values, distribution, per_step=True)
+    np.testing.assert_allclose(contributions.loss.mean(), average.loss, rtol=1e-6)
+    critic_average = Critic.loss_fn(values[:, :-1], targets, weights)
+    critic_contributions = Critic.loss_fn(values[:, :-1], targets, weights, per_step=True)
+    np.testing.assert_allclose(critic_contributions.mean(), critic_average, rtol=1e-6)
+
+
 @pytest.mark.parametrize("lam", [0.0, 1.0])
 def test_td_lambda_scan_matches_reference_at_lambda_endpoints(lam):
     cfg = DreamerConfig(discount=0.8, td_lambda=lam)

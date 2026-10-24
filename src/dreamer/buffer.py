@@ -136,8 +136,7 @@ def get_batch(
     )
 
 
-@nnx.jit
-def choose_action(
+def policy_step(
     world_model: DreamerWM,
     actor: Actor,
     carry: tuple[Array, Array],
@@ -145,8 +144,8 @@ def choose_action(
     prev_action: Array,
     is_first: Array,
     key: Array,
-) -> tuple[tuple[Array, Array], Array]:
-    """Get the policy's action, based on the world_model's recurrent state."""
+):
+    """Observe an image and return the action together with its state and distribution."""
     embedding = world_model.encoder(image)
     carry, outputs = world_model.rssm.unroll(
         carry,
@@ -165,7 +164,25 @@ def choose_action(
         posterior=posterior.reshape(shape),
     )
     action_dist = actor(state.joint_latent)
-    return carry, action_dist.sample(seed=key)
+    action = action_dist.sample(seed=key)
+    return carry, action, state, action_dist
+
+
+@nnx.jit
+def choose_action(
+    world_model: DreamerWM,
+    actor: Actor,
+    carry: tuple[Array, Array],
+    image: Array,
+    prev_action: Array,
+    is_first: Array,
+    key: Array,
+) -> tuple[tuple[Array, Array], Array]:
+    """Get the policy's action, based on the world_model's recurrent state."""
+    carry, action, _, _ = policy_step(
+        world_model, actor, carry, image, prev_action, is_first, key
+    )
+    return carry, action
 
 
 def collect_new_rollouts(

@@ -12,11 +12,11 @@ from .wm import DreamerConfig
 
 @chex.dataclass
 class ActorLoss:
-    reward_loss: Float[Array, ""]
-    entropy_loss: Float[Array, ""]
+    reward_loss: Float[Array, "..."]
+    entropy_loss: Float[Array, "..."]
 
     @property
-    def loss(self) -> Float[Array, ""]:
+    def loss(self) -> Float[Array, "..."]:
         return self.reward_loss + self.entropy_loss
 
 
@@ -58,6 +58,8 @@ class Actor(nnx.Module):
         continues: Float[Array, "Batch Time"],
         values: Float[Array, "Batch Time+1"],
         action_dists: TruncatedNormal,  # Samples are shape [B T A]
+        *,
+        per_step: bool = False,
     ) -> tuple[ActorLoss, Float[Array, "Batch Time"], Float[Array, "Batch Time"]]:
         # We need an extra value - one for each transition + the terminal value
         B, T = rewards.shape
@@ -70,8 +72,11 @@ class Actor(nnx.Module):
         # which the optimiser will minimise, plus an entropy term to encourage exploration
         # The hardcoded 1e-4 is from the Dreamer paper. TODO(Alex): stick it on the config
         weights = compute_step_weights(continues, cfg.discount)
-        reward_loss = -(weights * td_return).mean()
-        entropy_loss = -1e-4 * (weights * action_dists.entropy()).mean()
+        reward_loss = -(weights * td_return)
+        entropy_loss = -1e-4 * (weights * action_dists.entropy())
+        if not per_step:
+            reward_loss = reward_loss.mean()
+            entropy_loss = entropy_loss.mean()
 
         return (
             ActorLoss(
@@ -105,8 +110,11 @@ class Critic(nnx.Module):
         values: Float[Array, "B T"],
         targets: Float[Array, "B T"],
         weights: Float[Array, "B T"],
+        *,
+        per_step: bool = False,
     ):
-        return (weights * (values - targets) ** 2).mean()
+        losses = weights * (values - targets) ** 2
+        return losses if per_step else losses.mean()
 
 
 def compute_td_lambda_returns(
