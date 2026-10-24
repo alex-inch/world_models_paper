@@ -2,6 +2,7 @@ from dataclasses import asdict
 from pathlib import Path
 from pprint import pformat
 from time import perf_counter
+from typing import Literal
 
 import chex
 import gymnasium as gym
@@ -33,6 +34,7 @@ class TrainArgs:
     # Run config
     name: str
     cfg: DreamerConfig
+    backend: Literal["mps", "cpu", "cuda"] | None = None
     # Env config
     seed: int = 20
     num_envs: int = 8
@@ -353,6 +355,10 @@ def train(args: TrainArgs, envs: gym.vector.VectorEnv, run: wandb.Run):
 
 
 def main(args: TrainArgs):
+    if args.backend is not None:
+        jax.config.update("jax_platforms", args.backend)
+    logger.info(f"Using JAX devices: {jax.devices()}")
+
     args, run = setup_logging(args)
     args_pprint = pformat(asdict(args), sort_dicts=False)
     logger.info(f"Beginning training run with args:\n{args_pprint}")
