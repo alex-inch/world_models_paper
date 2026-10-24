@@ -7,14 +7,11 @@ import chex
 import gymnasium as gym
 import jax
 import jax.numpy as jnp
-import numpy as np
 import optax
 from einops import rearrange
 from flax import nnx
 from jax import Array
-from jaxtyping import Float
 from loguru import logger
-from PIL import Image, ImageDraw
 
 import wandb
 from dreamer.actor_critic import Actor, Critic
@@ -25,11 +22,10 @@ from dreamer.buffer import (
     init_buffer,
 )
 from dreamer.checkpoints import save_checkpoint
-from dreamer.imagine import run_imagination_rollout
+from dreamer.diagnostics import evaluate_rollouts
 from dreamer.training import actor_objective, critic_objective, wm_objective
 from dreamer.wm import DreamerBatch, DreamerWM
 from dreamer.wm.config import DreamerConfig
-from dreamer.wm.rssm import RSSMOut
 
 
 @chex.dataclass(frozen=True)  # freeze so it's hashable
@@ -149,57 +145,20 @@ def model_learning_step(
     }
 
 
-def format_rollout_gif_data(observations: Float[Array, "T H W C"], fps: int = 50):
-    "Get a jax array of frames into shape for wandb upload"
-    # OG is 50fps - we can downsample a bit to save space
-    frame_skip = 50 // fps
-    if 50 % fps != 0:
-        logger.warning(
-            f"Provided eval GIF FPS {fps} does not neatly divide env fps {50}, using fps {int(50 / frame_skip)}"
-        )
-    frames = np.asarray(observations[::frame_skip])
-    frames_rescaled = 255 * (frames + 0.5)
-    frames_rescaled = np.clip(frames_rescaled, 0, 255).astype(np.uint8)
-    return rearrange(frames_rescaled, "T H W C -> T C H W")
-
-
-def format_eval_video(rollout, reconstruction, imagination, imagination_start, fps):
-    # Align imagination with its starting observation before downsampling the video.
-    imagined_rollout = np.full(rollout.shape, -0.5, dtype=np.float32)
-    imagination_end = min(imagination_start + len(imagination), len(rollout))
-    imagined_rollout[imagination_start:imagination_end] = np.asarray(
-        imagination[: imagination_end - imagination_start]
-    )
-    comparison = np.concatenate([rollout, reconstruction, imagined_rollout], axis=2)
-    frames = format_rollout_gif_data(comparison, fps)
-
-    panel_width = rollout.shape[2]
-    header_height = 20
-    header = Image.new("RGB", (3 * panel_width, header_height))
-    draw = ImageDraw.Draw(header)
-    for panel, label in enumerate(["Policy", "Reconstruction", "Imagination"]):
-        draw.text((panel * panel_width + 4, 3), label, fill="white")
-    header = rearrange(np.asarray(header), "H W C -> C H W")
-
-    labelled_frames = np.zeros(
-        (len(frames), 3, frames.shape[2] + header_height, frames.shape[3]),
-        dtype=np.uint8,
-    )
-    labelled_frames[:, :, :header_height] = header
-    labelled_frames[:, :, header_height:] = frames
-    return labelled_frames
-
-
 def eval_step(
     envs: gym.vector.VectorEnv,
     world_model: DreamerWM,
     actor: Actor,
     critic: Critic,
+    target_critic: Critic,
     num_eps: int,
     fps: int = 10,
     imagination_horizon: int = 100,
+    fixed_batch: DreamerBatch | None = None,
 ):
     logger.info("Beginning eval step")
+    world_model = nnx.clone(world_model, arrays=True)
+    nnx.reseed(world_model, default=500_000)
     key = jax.random.key(500_000)  # Fixed seed for all eval renders
     collection_key, imagination_key = jax.random.split(key)
     buffer = init_buffer(capacity=num_eps)
@@ -207,67 +166,21 @@ def eval_step(
         buffer, envs, world_model, actor, num_eps=num_eps, key=collection_key
     )
 
-    rollout = buffer.obs[0]
-
-    # Construct a buffer with only one episode. Note we slide to retain the
-    # spurious batch dim ~ [B T ...]
-    images = buffer.obs[:1]
-    is_first = jnp.zeros(images.shape[:2], dtype=jnp.bool_)
-    is_first = is_first.at[:, 0].set(True)
-
-    batch = DreamerBatch(
-        image=images,
-        prev_action=buffer.acts[:1],
-        reward=buffer.rewards[:1],
-        cont=buffer.conts[:1],
-        is_first=is_first,
-    )
-
-    predictions = world_model(batch)
-    reconstruction = predictions.image[0]
-
-    # Start from a posterior state after five observations, then stop using images.
-    context_steps = 5
-    start = context_steps - 1
-    initial_state = RSSMOut(
-        hidden=predictions.hidden[:, start],
-        latent_sample=predictions.latent_sample[:, start],
-        prior=predictions.latent_prior[:, start],
-    )
-    trajectory, _, _ = run_imagination_rollout(
+    metrics, fixed_batch = evaluate_rollouts(
+        buffer,
         world_model,
         actor,
         critic,
-        initial_state,
-        horizon=imagination_horizon,
-        key=imagination_key,
+        target_critic,
+        imagination_key,
+        fps=fps,
+        imagination_horizon=imagination_horizon,
+        fixed_batch=fixed_batch,
     )
-    imagined_frames = world_model.decoder(trajectory.state.joint_latent)[0]
-    rollout_video = format_eval_video(
-        rollout, reconstruction, imagined_frames, start, fps
+    logger.info(
+        f"Eval step completed with mean return {metrics['eval/return_mean']:.2f}"
     )
-
-    rewards = buffer.rewards  # [T H]
-    returns = rewards.sum(axis=1)
-
-    logger.info(f"Eval step completed with mean return {returns.mean():.2f}")
-    return {
-        "eval/return_mean": float(returns.mean()),
-        "eval/return_median": float(np.median(returns)),
-        "eval/return_std": float(returns.std()),
-        "eval/returns": wandb.Histogram(returns, num_bins=16),  # type: ignore
-        "eval/policy": wandb.Video(
-            rollout_video,
-            caption=(
-                f"Mean Return: {float(returns.mean()):.0f}. "
-                f"Policy | Reconstruction | Imagination. "
-                f"Imagination starts after {context_steps} observations and runs for "
-                f"{imagination_horizon} steps; its panel is blank outside that window."
-            ),
-            fps=fps,
-            format="gif",
-        ),
-    }
+    return metrics, fixed_batch
 
 
 def setup_logging(args: TrainArgs):
@@ -341,6 +254,7 @@ def train(args: TrainArgs, envs: gym.vector.VectorEnv, run: wandb.Run):
     logger.info(f"Saving model checkpoints in {checkpoint_root}")
     last_checkpoint_step = 0
     train_step = 0
+    fixed_eval_batch = None
     started = perf_counter()
     key = jax.random.key(args.seed)
 
@@ -403,7 +317,16 @@ def train(args: TrainArgs, envs: gym.vector.VectorEnv, run: wandb.Run):
                 checkpoint_metadata,
             )
             last_checkpoint_step = train_step
-            eval_metrics = eval_step(envs, wm, actor, critic, args.num_eval_episodes)
+            eval_metrics, fixed_eval_batch = eval_step(
+                envs,
+                wm,
+                actor,
+                critic,
+                target_critic,
+                args.num_eval_episodes,
+                fixed_batch=fixed_eval_batch,
+            )
+            eval_metrics["train_step"] = train_step
             run.log(eval_metrics)
 
     # Final run of the eval at the end
@@ -416,7 +339,16 @@ def train(args: TrainArgs, envs: gym.vector.VectorEnv, run: wandb.Run):
         save_checkpoint(
             checkpoint_root / f"{train_step:08d}", models, args.cfg, checkpoint_metadata
         )
-    eval_metrics = eval_step(envs, wm, actor, critic, args.num_eval_episodes)
+    eval_metrics, _ = eval_step(
+        envs,
+        wm,
+        actor,
+        critic,
+        target_critic,
+        args.num_eval_episodes,
+        fixed_batch=fixed_eval_batch,
+    )
+    eval_metrics["train_step"] = train_step
     run.log(eval_metrics)
 
 
