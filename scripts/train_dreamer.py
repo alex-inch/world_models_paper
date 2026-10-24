@@ -1,5 +1,7 @@
 from dataclasses import asdict
+from pathlib import Path
 from pprint import pformat
+from time import perf_counter
 
 import chex
 import gymnasium as gym
@@ -10,9 +12,9 @@ import optax
 from einops import rearrange
 from flax import nnx
 from jax import Array
-from jax.lax import stop_gradient as sg
 from jaxtyping import Float
 from loguru import logger
+from PIL import Image, ImageDraw
 
 import wandb
 from dreamer.actor_critic import Actor, Critic
@@ -22,7 +24,9 @@ from dreamer.buffer import (
     get_batch,
     init_buffer,
 )
+from dreamer.checkpoints import save_checkpoint
 from dreamer.imagine import run_imagination_rollout
+from dreamer.training import actor_objective, critic_objective, wm_objective
 from dreamer.wm import DreamerBatch, DreamerWM
 from dreamer.wm.config import DreamerConfig
 from dreamer.wm.rssm import RSSMOut
@@ -39,66 +43,22 @@ class TrainArgs:
     env_id: str = "CarRacing-v3"
     # Training hparams
     buffer_size: int = 100
-    outer_train_steps: int = 100
+    outer_train_steps: int = 20
     batch_size: int = 16
     seq_length: int = 25
     lr: float = 1e-4
     adamw_eps: float = 1e-5
-    collect_interval: int = 10
+    collect_interval: int = 100
     imagination_horizon: int = 15
-    steps_per_eval = 5
+    steps_per_eval = 1
     num_eval_episodes: int = 64
     debug: bool = False
+    checkpoint_dir: str = "experiments/dreamer/checkpoints"
 
 
-@nnx.value_and_grad(has_aux=True)
-def wm_loss_fn(wm: DreamerWM, batch: DreamerBatch):
-    preds = wm(batch)
-    losses = wm.loss_fn(preds, batch, wm.cfg)
-    loss = (
-        wm.cfg.kl_beta * losses.kl_loss
-        + losses.continue_loss
-        + losses.reward_loss
-        + losses.image_loss
-    )
-    return loss, losses
-
-
-@nnx.value_and_grad(has_aux=True)
-def actor_loss_fn(
-    actor: Actor,
-    target_critic: Critic,
-    wm: DreamerWM,
-    initial_states: RSSMOut,  # [B H], [B Z]
-    horizon: int,
-    key: Array,
-):
-    rollout, rewards, conts = run_imagination_rollout(
-        wm,
-        actor,
-        target_critic,
-        sg(initial_states),
-        horizon=horizon,
-        key=key,
-    )
-    losses, targets, weights = actor.loss_fn(
-        actor.cfg, rewards, conts, rollout.value, rollout.action_dist
-    )
-    # Split out the data for the critic to use in its loss function
-    critic_data = (sg(rollout.state.joint_latent[:, :-1]), sg(targets), weights)
-    # which contains all the terms for posterity
-    return losses.loss, (losses, critic_data)
-
-
-@nnx.value_and_grad
-def critic_loss_fn(
-    critic: Critic,
-    features: Float[Array, "B T D"],
-    targets: Float[Array, "B T"],
-    weights: Float[Array, "B T"],
-):
-    values = critic(features)
-    return critic.loss_fn(values, targets, weights)
+wm_value_and_grad = nnx.value_and_grad(wm_objective, has_aux=True)
+actor_value_and_grad = nnx.value_and_grad(actor_objective, has_aux=True)
+critic_value_and_grad = nnx.value_and_grad(critic_objective)
 
 
 @nnx.jit(
@@ -129,7 +89,7 @@ def model_learning_step(
     batch = get_batch(replay_buffer, args.batch_size, args.seq_length, batch_key)
 
     # World model learning
-    (wm_loss, wm_sub_losses), wm_grads = wm_loss_fn(wm, batch)
+    (wm_loss, wm_sub_losses), wm_grads = wm_value_and_grad(wm, batch)
     wm_optim.update(wm, wm_grads)
 
     # Behaviour learning
@@ -141,7 +101,7 @@ def model_learning_step(
     initial_states = jax.tree.map(
         lambda x: rearrange(x, "B T ... -> (B T) ..."), model_states
     )
-    aux, actor_grads = actor_loss_fn(
+    aux, actor_grads = actor_value_and_grad(
         actor,
         target_critic,
         wm,
@@ -153,7 +113,7 @@ def model_learning_step(
     actor_loss, (actor_losses, critic_data) = aux
     states, targets, weights = critic_data
 
-    critic_loss, critic_grads = critic_loss_fn(critic, states, targets, weights)
+    critic_loss, critic_grads = critic_value_and_grad(critic, states, targets, weights)
     critic_optim.update(critic, critic_grads)
 
     # Update the target network
@@ -203,23 +163,89 @@ def format_rollout_gif_data(observations: Float[Array, "T H W C"], fps: int = 50
     return rearrange(frames_rescaled, "T H W C -> T C H W")
 
 
+def format_eval_video(rollout, reconstruction, imagination, imagination_start, fps):
+    # Align imagination with its starting observation before downsampling the video.
+    imagined_rollout = np.full(rollout.shape, -0.5, dtype=np.float32)
+    imagination_end = min(imagination_start + len(imagination), len(rollout))
+    imagined_rollout[imagination_start:imagination_end] = np.asarray(
+        imagination[: imagination_end - imagination_start]
+    )
+    comparison = np.concatenate([rollout, reconstruction, imagined_rollout], axis=2)
+    frames = format_rollout_gif_data(comparison, fps)
+
+    panel_width = rollout.shape[2]
+    header_height = 20
+    header = Image.new("RGB", (3 * panel_width, header_height))
+    draw = ImageDraw.Draw(header)
+    for panel, label in enumerate(["Policy", "Reconstruction", "Imagination"]):
+        draw.text((panel * panel_width + 4, 3), label, fill="white")
+    header = rearrange(np.asarray(header), "H W C -> C H W")
+
+    labelled_frames = np.zeros(
+        (len(frames), 3, frames.shape[2] + header_height, frames.shape[3]),
+        dtype=np.uint8,
+    )
+    labelled_frames[:, :, :header_height] = header
+    labelled_frames[:, :, header_height:] = frames
+    return labelled_frames
+
+
 def eval_step(
     envs: gym.vector.VectorEnv,
     world_model: DreamerWM,
     actor: Actor,
+    critic: Critic,
     num_eps: int,
     fps: int = 10,
+    imagination_horizon: int = 100,
 ):
-    # TODO(Alex): Add imagination gif
-    # TODO(Alex): Add reconstruction gif
     logger.info("Beginning eval step")
     key = jax.random.key(500_000)  # Fixed seed for all eval renders
+    collection_key, imagination_key = jax.random.split(key)
     buffer = init_buffer(capacity=num_eps)
     buffer = collect_new_rollouts(
-        buffer, envs, world_model, actor, num_eps=num_eps, key=key
+        buffer, envs, world_model, actor, num_eps=num_eps, key=collection_key
     )
 
-    rollout = format_rollout_gif_data(buffer.obs[0], fps)
+    rollout = buffer.obs[0]
+
+    # Construct a buffer with only one episode. Note we slide to retain the
+    # spurious batch dim ~ [B T ...]
+    images = buffer.obs[:1]
+    is_first = jnp.zeros(images.shape[:2], dtype=jnp.bool_)
+    is_first = is_first.at[:, 0].set(True)
+
+    batch = DreamerBatch(
+        image=images,
+        prev_action=buffer.acts[:1],
+        reward=buffer.rewards[:1],
+        cont=buffer.conts[:1],
+        is_first=is_first,
+    )
+
+    predictions = world_model(batch)
+    reconstruction = predictions.image[0]
+
+    # Start from a posterior state after five observations, then stop using images.
+    context_steps = 5
+    start = context_steps - 1
+    initial_state = RSSMOut(
+        hidden=predictions.hidden[:, start],
+        latent_sample=predictions.latent_sample[:, start],
+        prior=predictions.latent_prior[:, start],
+    )
+    trajectory, _, _ = run_imagination_rollout(
+        world_model,
+        actor,
+        critic,
+        initial_state,
+        horizon=imagination_horizon,
+        key=imagination_key,
+    )
+    imagined_frames = world_model.decoder(trajectory.state.joint_latent)[0]
+    rollout_video = format_eval_video(
+        rollout, reconstruction, imagined_frames, start, fps
+    )
 
     rewards = buffer.rewards  # [T H]
     returns = rewards.sum(axis=1)
@@ -231,8 +257,13 @@ def eval_step(
         "eval/return_std": float(returns.std()),
         "eval/returns": wandb.Histogram(returns, num_bins=16),  # type: ignore
         "eval/policy": wandb.Video(
-            rollout,
-            caption=f"Mean Return: {float(returns.mean()):.0f}",
+            rollout_video,
+            caption=(
+                f"Mean Return: {float(returns.mean()):.0f}. "
+                f"Policy | Reconstruction | Imagination. "
+                f"Imagination starts after {context_steps} observations and runs for "
+                f"{imagination_horizon} steps; its panel is blank outside that window."
+            ),
             fps=fps,
             format="gif",
         ),
@@ -292,6 +323,25 @@ def train(args: TrainArgs, envs: gym.vector.VectorEnv, run: wandb.Run):
         logger.info(f"{name}: {count:,} trainable parameters")
     run.config.update({"parameter_counts": parameter_counts})
 
+    models = {
+        "world_model": wm,
+        "actor": actor,
+        "critic": critic,
+        "target_critic": target_critic,
+    }
+    checkpoint_root = Path(args.checkpoint_dir) / run.id
+    checkpoint_metadata = {
+        "train_args": asdict(args),
+        "wandb_run_id": run.id,
+        "train_step": 0,
+        "env_steps": 0,
+        "elapsed_seconds": 0.0,
+    }
+    save_checkpoint(checkpoint_root / "00000000", models, args.cfg, checkpoint_metadata)
+    logger.info(f"Saving model checkpoints in {checkpoint_root}")
+    last_checkpoint_step = 0
+    train_step = 0
+    started = perf_counter()
     key = jax.random.key(args.seed)
 
     # Train loop
@@ -341,11 +391,32 @@ def train(args: TrainArgs, envs: gym.vector.VectorEnv, run: wandb.Run):
   Critic Loss: {metrics["ac/critic/loss"]:.3f}""")
 
         if outer_step % args.steps_per_eval == 0:
-            eval_metrics = eval_step(envs, wm, actor, args.num_eval_episodes)
+            checkpoint_metadata["train_step"] = train_step
+            checkpoint_metadata["env_steps"] = (
+                (outer_step + 1) * args.num_envs * (replay_buffer.episode_length - 1)
+            )
+            checkpoint_metadata["elapsed_seconds"] = perf_counter() - started
+            save_checkpoint(
+                checkpoint_root / f"{train_step:08d}",
+                models,
+                args.cfg,
+                checkpoint_metadata,
+            )
+            last_checkpoint_step = train_step
+            eval_metrics = eval_step(envs, wm, actor, critic, args.num_eval_episodes)
             run.log(eval_metrics)
 
     # Final run of the eval at the end
-    eval_metrics = eval_step(envs, wm, actor, args.num_eval_episodes)
+    if train_step != last_checkpoint_step:
+        checkpoint_metadata["train_step"] = train_step
+        checkpoint_metadata["env_steps"] = (
+            args.outer_train_steps * args.num_envs * (replay_buffer.episode_length - 1)
+        )
+        checkpoint_metadata["elapsed_seconds"] = perf_counter() - started
+        save_checkpoint(
+            checkpoint_root / f"{train_step:08d}", models, args.cfg, checkpoint_metadata
+        )
+    eval_metrics = eval_step(envs, wm, actor, critic, args.num_eval_episodes)
     run.log(eval_metrics)
 
 

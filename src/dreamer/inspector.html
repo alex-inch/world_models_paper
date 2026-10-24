@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+body { margin: 12px; color: #263342; font: 14px system-ui, sans-serif; background: #fafbfc; }
+h2 { margin: 0 0 8px; font-size: 20px; }
+p { line-height: 1.45; }
+.controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
+button, select, input { font: inherit; }
+button { padding: 5px 14px; cursor: pointer; }
+input[type=range] { flex: 1; min-width: 180px; }
+input[type=number] { width: 80px; }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.plots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.card { padding: 10px; background: white; border: 1px solid #dce3eb; border-radius: 7px; }
+.label { margin-bottom: 6px; font-weight: 600; }
+img { width: 100%; max-height: 240px; object-fit: contain; image-rendering: pixelated; }
+canvas { display: block; width: 100%; height: auto; }
+.legend { font-size: 12px; margin-top: 5px; }
+.metrics { display: flex; gap: 8px 18px; flex-wrap: wrap; margin: 12px 0; }
+.metric { min-width: 145px; }
+.metric b { display: block; font-variant-numeric: tabular-nums; }
+.latent-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.hint { color: #596879; font-size: 12px; }
+</style>
+</head>
+<body>
+<h2 id="title">Loading inspector…</h2>
+<p id="caption"></p>
+<div class="controls">
+  <label>Episode <select id="episode"></select></label>
+  <button id="play">Play</button>
+  <input id="frame" type="range" min="0" value="0">
+  <input id="number" type="number" min="0" value="0">
+  <label>Playback <select id="speed"><option value="100">10 fps</option><option value="50">20 fps</option><option value="250">4 fps</option></select></label>
+</div>
+<p class="hint" id="selection"></p>
+<div class="grid" id="images"></div>
+<div class="metrics" id="metrics"></div>
+<div class="grid" id="actions"></div>
+<div class="plots" id="plots" style="margin-top:12px"></div>
+<div class="latent-grid" id="latents"></div>
+<script>
+const compressedRecordings = "__RECORDINGS__";
+let recordings;
+const colours = ["#2373b4", "#d95a33", "#289265", "#9459ad"];
+const byId = id => document.getElementById(id);
+let recording;
+let timer = null;
+
+function makeCard(parent, title, width, height) {
+  const card = document.createElement("div");
+  card.className = "card";
+  const label = document.createElement("div");
+  label.className = "label";
+  label.textContent = title;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  card.append(label, canvas);
+  parent.append(card);
+  return {card, canvas};
+}
+
+function drawChart(canvas, lines, marker, bounds) {
+  const ctx = canvas.getContext("2d");
+  const pad = {left: 48, right: 12, top: 12, bottom: 25};
+  const w = canvas.width - pad.left - pad.right;
+  const h = canvas.height - pad.top - pad.bottom;
+  const points = lines.flatMap(line => line.y.filter(Number.isFinite));
+  let low = Math.min(0, ...points);
+  let high = Math.max(0, ...points);
+  if (high === low) high = low + 1;
+  const xLow = bounds[0];
+  const xHigh = Math.max(bounds[1], xLow + 0.000001);
+  const xPixel = x => pad.left + (x - xLow) / (xHigh - xLow) * w;
+  const yPixel = y => pad.top + (high - y) / (high - low) * h;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = "11px system-ui";
+  ctx.strokeStyle = "#dce3eb";
+  ctx.strokeRect(pad.left, pad.top, w, h);
+  ctx.fillStyle = "#596879";
+  ctx.fillText(high.toPrecision(3), 2, pad.top + 9);
+  ctx.fillText(low.toPrecision(3), 2, pad.top + h);
+  ctx.fillText(xLow.toFixed(1), pad.left, canvas.height - 6);
+  ctx.fillText(xHigh.toFixed(1), pad.left + w - 30, canvas.height - 6);
+  lines.forEach((line, index) => {
+    ctx.strokeStyle = colours[index % colours.length];
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    let connected = false;
+    line.y.forEach((value, point) => {
+      if (!Number.isFinite(value)) { connected = false; return; }
+      const x = xPixel(line.x[point]);
+      const y = yPixel(value);
+      if (connected) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+      connected = true;
+    });
+    ctx.stroke();
+  });
+  ctx.strokeStyle = "#263342";
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.moveTo(xPixel(marker), pad.top);
+  ctx.lineTo(xPixel(marker), pad.top + h);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawLatents(canvas, probabilities, samples) {
+  const ctx = canvas.getContext("2d");
+  const rows = probabilities.length;
+  const columns = probabilities[0].length;
+  const cellWidth = canvas.width / columns;
+  const cellHeight = canvas.height / rows;
+  probabilities.forEach((row, r) => row.forEach((value, c) => {
+    ctx.fillStyle = `rgb(${Math.round(240 - value * 210)},${Math.round(245 - value * 140)},${Math.round(250 - value * 40)})`;
+    ctx.fillRect(c * cellWidth, r * cellHeight, cellWidth, cellHeight);
+  }));
+  ctx.strokeStyle = "#d95a33";
+  samples.forEach((sample, r) => ctx.strokeRect(sample * cellWidth, r * cellHeight, cellWidth, cellHeight));
+}
+
+function showFrame(value) {
+  const frame = Math.max(0, Math.min(recording.length - 1, Number(value)));
+  byId("frame").value = frame;
+  byId("number").value = frame;
+  byId("selection").textContent = `For the branch cells below: episode_index = ${byId("episode").value}; frame = ${frame}`;
+  recording.panels.forEach((panel, index) => {
+    const image = byId(`image-${index}`);
+    const source = panel.frames[frame];
+    image.style.visibility = source ? "visible" : "hidden";
+    if (source) image.src = source;
+  });
+  recording.metrics.forEach((metric, index) => {
+    const value = metric.values[frame];
+    byId(`metric-${index}`).textContent = Number.isFinite(value) ? value.toPrecision(5) : String(value);
+  });
+  recording.plots.forEach((plot, index) => {
+    const lines = plot.series.map(series => ({x: series.values.map((_, t) => t), y: series.values}));
+    drawChart(byId(`plot-${index}`), lines, frame, [0, recording.length - 1]);
+  });
+  if (recording.actions) {
+    recording.densities.forEach((distribution, index) => {
+      drawChart(byId(`action-${index}`), [{x: distribution.grid, y: distribution.density[frame]}], recording.actions[frame][index], [distribution.grid[0], distribution.grid.at(-1)]);
+      byId(`action-value-${index}`).textContent = `Sample ${recording.actions[frame][index].toFixed(4)}; distribution mean ${recording.action_mean[frame][index].toFixed(4)}`;
+    });
+  }
+  ["prior", "posterior"].forEach(name => {
+    if (recording[name]) drawLatents(byId(name), recording[name][frame], recording.samples[frame]);
+  });
+}
+
+function stopPlayback() {
+  clearInterval(timer);
+  timer = null;
+  byId("play").textContent = "Play";
+}
+
+function selectRecording(index) {
+  stopPlayback();
+  recording = recordings[index];
+  byId("title").textContent = recording.title;
+  byId("caption").textContent = recording.caption;
+  byId("frame").max = recording.length - 1;
+  byId("number").max = recording.length - 1;
+  ["images", "metrics", "actions", "plots", "latents"].forEach(id => byId(id).replaceChildren());
+  recording.panels.forEach((panel, index) => {
+    const card = document.createElement("div");
+    card.className = "card";
+    const label = document.createElement("div");
+    label.className = "label";
+    label.textContent = panel.label;
+    const image = document.createElement("img");
+    image.id = `image-${index}`;
+    card.append(label, image);
+    byId("images").append(card);
+  });
+  recording.metrics.forEach((metric, index) => {
+    const item = document.createElement("div");
+    item.className = "metric";
+    item.textContent = metric.label;
+    const value = document.createElement("b");
+    value.id = `metric-${index}`;
+    item.append(value);
+    byId("metrics").append(item);
+  });
+  if (recording.actions) {
+    ["Steering density", "Throttle density", "Brake density"].forEach((title, index) => {
+      const {card, canvas} = makeCard(byId("actions"), title, 320, 140);
+      canvas.id = `action-${index}`;
+      const label = document.createElement("div");
+      label.className = "legend";
+      label.id = `action-value-${index}`;
+      card.append(label);
+    });
+  }
+  recording.plots.forEach((plot, index) => {
+    const {card, canvas} = makeCard(byId("plots"), plot.title, 480, 150);
+    canvas.id = `plot-${index}`;
+    const legend = document.createElement("div");
+    legend.className = "legend";
+    plot.series.forEach((series, colour) => {
+      const label = document.createElement("span");
+      label.style.color = colours[colour % colours.length];
+      label.textContent = series.label + "   ";
+      legend.append(label);
+    });
+    card.append(legend);
+  });
+  ["prior", "posterior"].forEach(name => {
+    if (recording[name]) {
+      const {card, canvas} = makeCard(byId("latents"), `${name} categorical probabilities`, 400, 240);
+      canvas.id = name;
+      const hint = document.createElement("div");
+      hint.className = "hint";
+      hint.textContent = "Rows: categorical distributions; columns: classes. Orange marks the sampled latent.";
+      card.append(hint);
+    }
+  });
+  showFrame(0);
+}
+
+async function loadRecordings() {
+  const bytes = Uint8Array.from(atob(compressedRecordings), character => character.charCodeAt(0));
+  const compressed = new Blob([bytes]).stream();
+  const decompressed = compressed.pipeThrough(new DecompressionStream("gzip"));
+  recordings = JSON.parse(await new Response(decompressed).text());
+  recordings.forEach((recording, index) => {
+    const option = document.createElement("option");
+    option.value = index;
+    option.textContent = index;
+    byId("episode").append(option);
+  });
+  selectRecording(0);
+}
+byId("episode").onchange = event => selectRecording(Number(event.target.value));
+byId("frame").oninput = event => showFrame(event.target.value);
+byId("number").onchange = event => showFrame(event.target.value);
+byId("speed").onchange = stopPlayback;
+byId("play").onclick = () => {
+  if (timer) { stopPlayback(); return; }
+  byId("play").textContent = "Pause";
+  timer = setInterval(() => {
+    const next = Number(byId("frame").value) + 1;
+    if (next >= recording.length) { stopPlayback(); return; }
+    showFrame(next);
+  }, Number(byId("speed").value));
+};
+const ready = loadRecordings();
+</script>
+</body>
+</html>
