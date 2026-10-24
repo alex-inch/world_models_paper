@@ -23,7 +23,10 @@ def _mills_ratio(a):
     def continued_fraction(i, remainder):
         return (terms - i) / (far_a + remainder)
 
-    remainder = jax.lax.fori_loop(0, terms, continued_fraction, jnp.zeros_like(a))
+    # These short recurrences run inside imagination; avoid nested GPU loops.
+    remainder = jax.lax.fori_loop(
+        0, terms, continued_fraction, jnp.zeros_like(a), unroll=True
+    )
     far = 1 / (far_a + remainder)
     return jnp.where(a < 8.0, near, far)
 
@@ -39,8 +42,11 @@ def _ndtri_from_log_cdf(log_p):
         slope = jnp.exp(-0.5 * x**2 - _HALF_LOG_2PI - log_cdf)
         return x - (log_cdf - target) / slope
 
-    tail = jax.lax.fori_loop(0, 4, newton_step, initial)
-    return jnp.where(log_p > -60, ordinary, tail)
+    def invert_tail(_):
+        tail = jax.lax.fori_loop(0, 4, newton_step, initial, unroll=True)
+        return jnp.where(log_p > -60, ordinary, tail)
+
+    return jax.lax.cond(jnp.all(log_p > -60), lambda _: ordinary, invert_tail, None)
 
 
 def _tail_stats(a, width, scale):
@@ -82,7 +88,7 @@ def _sample_far_tail(a, width, uniform):
         log_ratio = -a * z - 0.5 * z**2 + jnp.log(mills_z / mills_a)
         return z + (log_ratio - target) * mills_z
 
-    return jax.lax.fori_loop(0, 3, newton_step, -target / a)
+    return jax.lax.fori_loop(0, 3, newton_step, -target / a, unroll=True)
 
 
 class _ScalarTruncatedNormal(distrax.Distribution):
@@ -149,18 +155,8 @@ class _ScalarTruncatedNormal(distrax.Distribution):
         small_entropy = jnp.log(upper - lower) + jnp.log(mass) + cs * first + second / 2
         small_log_mass = jnp.log(2 * hs) - c2 / 2 - _HALF_LOG_2PI + jnp.log(mass)
 
-        positive = a >= 0
-        negative = b <= 0
-        pos_a = jnp.where(positive & ~small, a, 0.0)
-        pos_w = jnp.where(positive & ~small, width, 1.0)
-        pos_dx, pos_entropy, pos_log_mass, pos_log_integral = _tail_stats(
-            pos_a, pos_w, scale
-        )
-        neg_a = jnp.where(negative & ~small, -b, 0.0)
-        neg_w = jnp.where(negative & ~small, width, 1.0)
-        neg_dx, neg_entropy, neg_log_mass, neg_log_integral = _tail_stats(
-            neg_a, neg_w, scale
-        )
+        positive = a > 0
+        negative = b < 0
 
         cross = ~positive & ~negative & ~small
         cross_a = jnp.where(cross, a, -1.0)
@@ -176,31 +172,53 @@ class _ScalarTruncatedNormal(distrax.Distribution):
             + 0.5 * (1 + cross_a * density_a - cross_b * density_b)
         )
 
-        mean = jnp.where(
-            small,
-            small_mean,
-            jnp.where(
+        def with_tails(_):
+            pos_a = jnp.where(positive & ~small, a, 0.0)
+            pos_w = jnp.where(positive & ~small, width, 1.0)
+            pos_dx, pos_entropy, pos_log_mass, pos_log_integral = _tail_stats(
+                pos_a, pos_w, scale
+            )
+            neg_a = jnp.where(negative & ~small, -b, 0.0)
+            neg_w = jnp.where(negative & ~small, width, 1.0)
+            neg_dx, neg_entropy, neg_log_mass, neg_log_integral = _tail_stats(
+                neg_a, neg_w, scale
+            )
+            mean = jnp.where(
                 positive,
                 lower + scale * pos_dx,
                 jnp.where(negative, upper - scale * neg_dx, cross_mean),
-            ),
-        )
-        entropy = jnp.where(
-            small,
-            small_entropy,
-            jnp.where(
+            )
+            entropy = jnp.where(
                 positive, pos_entropy, jnp.where(negative, neg_entropy, cross_entropy)
-            ),
-        )
-        log_mass = jnp.where(
-            small,
-            small_log_mass,
-            jnp.where(
+            )
+            log_mass = jnp.where(
                 positive,
                 pos_log_mass,
                 jnp.where(negative, neg_log_mass, cross_log_mass),
-            ),
+            )
+            return mean, entropy, log_mass, pos_log_integral, neg_log_integral
+
+        def without_tails(_):
+            unused_integral = jnp.zeros_like(loc)
+            return (
+                cross_mean,
+                cross_entropy,
+                cross_log_mass,
+                unused_integral,
+                unused_integral,
+            )
+
+        # The actor keeps its mean inside the bounds. Skip the tail recurrences
+        # for these batches instead of evaluating them and discarding the result.
+        mean, entropy, log_mass, pos_log_integral, neg_log_integral = jax.lax.cond(
+            jnp.any((positive | negative) & ~small),
+            with_tails,
+            without_tails,
+            None,
         )
+        mean = jnp.where(small, small_mean, mean)
+        entropy = jnp.where(small, small_entropy, entropy)
+        log_mass = jnp.where(small, small_log_mass, log_mass)
         return (
             mean,
             entropy,
@@ -275,16 +293,25 @@ class _ScalarTruncatedNormal(distrax.Distribution):
         standard = _ndtri_from_log_cdf(log_probability)
         standard = jnp.where(a >= 0, -standard, standard)
         sample = loc + scale * standard
-        width = (upper - lower) / scale
-        pos_a = jnp.where(far_positive, a, 20.0)
-        pos_w = jnp.where(far_positive, width, 1.0)
-        neg_a = jnp.where(far_negative, -b, 20.0)
-        neg_w = jnp.where(far_negative, width, 1.0)
-        sample = jnp.where(
-            far_positive, lower + scale * _sample_far_tail(pos_a, pos_w, u), sample
-        )
-        sample = jnp.where(
-            far_negative, upper - scale * _sample_far_tail(neg_a, neg_w, u), sample
+
+        def sample_far_tails(sample):
+            width = (upper - lower) / scale
+            pos_a = jnp.where(far_positive, a, 20.0)
+            pos_w = jnp.where(far_positive, width, 1.0)
+            neg_a = jnp.where(far_negative, -b, 20.0)
+            neg_w = jnp.where(far_negative, width, 1.0)
+            sample = jnp.where(
+                far_positive, lower + scale * _sample_far_tail(pos_a, pos_w, u), sample
+            )
+            return jnp.where(
+                far_negative, upper - scale * _sample_far_tail(neg_a, neg_w, u), sample
+            )
+
+        sample = jax.lax.cond(
+            jnp.any(far_positive | far_negative),
+            sample_far_tails,
+            lambda sample: sample,
+            sample,
         )
         return jnp.clip(sample, lower, upper)
 

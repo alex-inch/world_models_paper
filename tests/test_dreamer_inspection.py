@@ -104,7 +104,10 @@ def test_recording_uses_training_policy_and_keeps_transition_alignment(models, e
     np.testing.assert_array_equal(episode["truncated"], [False, False, False, True])
     state = _state_from_arrays(episode)
     distribution = models["actor"](state.joint_latent)
-    np.testing.assert_array_equal(distribution.loc[0], episode["action_loc"])
+    # Batched and single-step GPU matmuls can differ by a float32 rounding unit.
+    np.testing.assert_allclose(
+        distribution.loc[0], episode["action_loc"], rtol=1e-6, atol=1e-7
+    )
     np.testing.assert_allclose(
         distribution.mean()[0], episode["action_mean"], rtol=1e-6
     )

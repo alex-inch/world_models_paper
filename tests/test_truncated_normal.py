@@ -4,6 +4,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from scipy.integrate import quad
+from scipy.stats import truncnorm
 
 from dreamer.truncated_normal import TruncatedNormal
 
@@ -165,3 +166,97 @@ def test_action_parameter_shapes():
         TruncatedNormal(loc, jnp.ones((4, 2)), 0.0, 1.0)
     with pytest.raises(AssertionError):
         TruncatedNormal(loc, 1.0, jnp.zeros(2), jnp.ones(3))
+
+
+@pytest.mark.parametrize("include_tail", [False, True])
+def test_actor_parameter_range_matches_quadrature_and_has_finite_gradients(
+    include_tail,
+):
+    lower = np.array([-1.0, 0.0, 0.0], dtype=np.float32)
+    upper = np.ones(3, dtype=np.float32)
+    loc = np.array([lower, (lower + upper) / 2, upper], dtype=np.float32)
+    scale = np.array(
+        [[0.1, 0.05, 0.05], [1.0, 0.5, 1.0], [2.1, 1.05, 1.05]],
+        dtype=np.float32,
+    )
+    if include_tail:
+        loc = np.concatenate([loc, [[8.0, -8.0, 2.0]]]).astype(np.float32)
+        scale = np.concatenate([scale, [[1.0, 1.0, 0.2]]]).astype(np.float32)
+
+    parameters = jnp.stack([jnp.asarray(loc), jnp.log(scale)], axis=-1)
+
+    def objective(parameters):
+        dist = TruncatedNormal(
+            parameters[..., 0], jnp.exp(parameters[..., 1]), lower, upper
+        )
+        samples = dist.sample(seed=jax.random.key(42), sample_shape=(32,))
+        mean, entropy = dist.mean(), dist.entropy()
+        return mean.sum() + entropy.sum() + samples.mean(), (mean, entropy, samples)
+
+    (_, (mean, entropy, samples)), gradients = jax.jit(
+        jax.value_and_grad(objective, has_aux=True)
+    )(parameters)
+    expected = np.array([
+        [
+            _quadrature_stats(
+                float(loc[i, j]), float(scale[i, j]), float(lower[j]), float(upper[j])
+            )
+            for j in range(3)
+        ]
+        for i in range(len(loc))
+    ])
+    np.testing.assert_allclose(mean, expected[..., 0], rtol=2e-4, atol=6e-5)
+    np.testing.assert_allclose(
+        entropy, expected[..., 1].sum(axis=-1), rtol=2e-4, atol=5e-4
+    )
+    assert np.isfinite(gradients).all()
+    assert np.all(np.asarray(samples) >= lower)
+    assert np.all(np.asarray(samples) <= upper)
+
+
+def test_sampling_uniform_endpoints_matches_quantiles_and_has_finite_gradients(
+    monkeypatch,
+):
+    lower = np.array([-1.0, 0.0, 0.0], dtype=np.float32)
+    upper = np.ones(3, dtype=np.float32)
+    loc = np.array([lower, (lower + upper) / 2, upper, upper], dtype=np.float32)
+    scale = np.array(
+        [
+            [0.1, 0.05, 0.05],
+            [0.1, 0.05, 0.05],
+            [0.1, 0.05, 0.05],
+            [2.1, 1.05, 1.05],
+        ],
+        dtype=np.float32,
+    )
+    uniform = np.array(
+        [0.0, 1e-7, 0.5, 1.0 - np.finfo(np.float32).eps], dtype=np.float32
+    )
+
+    def fixed_uniform(key, shape, dtype):
+        return jnp.broadcast_to(jnp.asarray(uniform[:, None, None], dtype=dtype), shape)
+
+    monkeypatch.setattr(jax.random, "uniform", fixed_uniform)
+
+    def objective(parameters):
+        dist = TruncatedNormal(
+            parameters[..., 0], jnp.exp(parameters[..., 1]), lower, upper
+        )
+        samples = dist.sample(seed=jax.random.key(0), sample_shape=(len(uniform),))
+        return samples.sum(), samples
+
+    parameters = jnp.stack([jnp.asarray(loc), jnp.log(scale)], axis=-1)
+    (_, samples), gradients = jax.jit(jax.value_and_grad(objective, has_aux=True))(
+        parameters
+    )
+    expected = truncnorm.ppf(
+        uniform[:, None, None],
+        (lower.astype(float) - loc) / scale,
+        (upper.astype(float) - loc) / scale,
+        loc=loc,
+        scale=scale,
+    )
+    np.testing.assert_allclose(samples, expected, rtol=2e-4, atol=2e-5)
+    assert np.isfinite(gradients).all()
+    assert np.all(np.asarray(samples) >= lower)
+    assert np.all(np.asarray(samples) <= upper)
