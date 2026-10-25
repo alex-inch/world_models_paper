@@ -229,6 +229,11 @@ def test_sampling_uniform_endpoints_matches_quantiles_and_has_finite_gradients(
         ],
         dtype=np.float32,
     )
+    # On MPS, these near-bound means used to round the sampled CDF up to one.
+    near_lower = np.array([-0.9995594, 0.02194139, 3.8743019e-6], dtype=np.float32)
+    near_scale = np.array([0.10537777, 0.05017955, 0.050000597], dtype=np.float32)
+    loc = np.concatenate([loc, [near_lower, lower + upper - near_lower]])
+    scale = np.concatenate([scale, [near_scale, near_scale]])
     uniform = np.array(
         [0.0, 1e-7, 0.5, 1.0 - np.finfo(np.float32).eps], dtype=np.float32
     )

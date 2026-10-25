@@ -286,12 +286,14 @@ class _ScalarTruncatedNormal(distrax.Distribution):
         far_negative = b <= -20
         # Only invert the selected probability. Unused inverse-CDF branches can
         # otherwise produce infinite derivatives that leak through jnp.where.
-        log_probability = jnp.where(a >= 0, log_sf, log_cdf)
+        # Use the smaller tail so exp(log_probability) cannot round up to one.
+        use_survival = log_sf < log_cdf
+        log_probability = jnp.where(use_survival, log_sf, log_cdf)
         log_probability = jnp.where(
             far_positive | far_negative, -math.log(2), log_probability
         )
         standard = _ndtri_from_log_cdf(log_probability)
-        standard = jnp.where(a >= 0, -standard, standard)
+        standard = jnp.where(use_survival, -standard, standard)
         sample = loc + scale * standard
 
         def sample_far_tails(sample):
