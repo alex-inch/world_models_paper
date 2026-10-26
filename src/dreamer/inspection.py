@@ -19,6 +19,12 @@ from wm.utils.obs import crop_obs, normalise_obs
 record_step = nnx.jit(policy_step)
 
 
+@jax.jit
+def _action_statistics(distribution):
+    """Compile distribution diagnostics together to avoid per-frame eager overhead."""
+    return distribution.mean()[0], distribution.entropy()[0]
+
+
 def record_episode(models, envs, *, seed: int, max_steps: int = 1000):
     """Record decision states s_t, actions a_t, and their following observations/rewards."""
     wm, actor = models["world_model"], models["actor"]
@@ -37,6 +43,7 @@ def record_episode(models, envs, *, seed: int, max_steps: int = 1000):
         carry, action, state, distribution = record_step(
             wm, actor, carry, jnp.asarray(image), prev_action, is_first, action_key
         )
+        action_mean, action_entropy = _action_statistics(distribution)
         next_observation, reward, terminated, truncated, _ = envs.step(
             np.asarray(action)
         )
@@ -62,8 +69,8 @@ def record_episode(models, envs, *, seed: int, max_steps: int = 1000):
             "action_scale": distribution.scale[0],
             "action_lower": distribution.lower[0],
             "action_upper": distribution.upper[0],
-            "action_mean": distribution.mean()[0],
-            "action_entropy": distribution.entropy()[0],
+            "action_mean": action_mean,
+            "action_entropy": action_entropy,
         }
         for name, value in jax.device_get(row).items():
             history.setdefault(name, []).append(value)
