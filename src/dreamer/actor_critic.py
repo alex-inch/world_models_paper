@@ -73,7 +73,7 @@ class Actor(nnx.Module):
         # The hardcoded 1e-4 is from the Dreamer paper. TODO(Alex): stick it on the config
         weights = compute_step_weights(continues, cfg.discount)
         reward_loss = -(weights * td_return)
-        entropy_loss = -1e-4 * (weights * action_dists.entropy())
+        entropy_loss = -cfg.actor_entropy_weight * (weights * action_dists.entropy())
         if not per_step:
             reward_loss = reward_loss.mean()
             entropy_loss = entropy_loss.mean()

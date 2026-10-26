@@ -25,6 +25,7 @@ class DreamerConfig:
     discount: float = 0.997
     reward_encoding_bins: int = 127
     reward_encoding_max_exp: int = 9
+    actor_entropy_weight: float = 1e-4
 
     @property
     def activation_fn(self) -> Callable:
