@@ -17,6 +17,11 @@ from dreamer.wm import DreamerBatch, DreamerConfig
 from dreamer.wm.rssm import RSSMOut
 
 
+class ZeroStateRSSM(nnx.Module):
+    def initialize_state(self, batch_size):
+        return jnp.zeros((batch_size, 1)), jnp.zeros((batch_size, 2))
+
+
 class CountingWorldModel(nnx.Module):
     def __init__(self):
         self.cfg = DreamerConfig(
@@ -28,13 +33,18 @@ class CountingWorldModel(nnx.Module):
             td_lambda=0.5,
         )
         self.rngs = nnx.Rngs(20)
+        self.rssm = ZeroStateRSSM()
 
-    def run_rssm(self, batch):
+    def run_rssm(self, batch, initial_state):
         self.rngs()  # Like the real RSSM, observing a sequence advances an RNG stream.
         shape = batch.image.shape[:2]
+        hidden, latent = initial_state
+        assert hidden.shape == (shape[0], 1)
+        assert latent.shape == (shape[0], 2)
         return RSSMOut(
-            hidden=batch.image[..., 0, 0, :1],
-            latent_sample=jnp.broadcast_to(jnp.array([1.0, 0.0]), (*shape, 2)),
+            hidden=batch.image[..., 0, 0, :1] + hidden[:, None],
+            latent_sample=jnp.broadcast_to(jnp.array([1.0, 0.0]), (*shape, 2))
+            + latent[:, None],
             prior=jnp.zeros((*shape, 1, 2)),
             posterior=jnp.zeros((*shape, 1, 2)),
         )
@@ -162,12 +172,12 @@ def test_reference_metrics_are_repeatable_and_leave_model_state_unchanged():
 @pytest.mark.parametrize("fps", [10, 50])
 def test_eval_video_repeats_context_and_imagination_in_sync(monkeypatch, fps):
     class VideoWorldModel(CountingWorldModel):
-        def __call__(self, batch):
+        def __call__(self, batch, initial_state):
             # Posterior states jump ten units per frame; imagination advances
             # only one. This makes resets and off-by-one errors visible.
             hidden = (10 * jnp.arange(batch.image.shape[1], dtype=jnp.float32))[
                 None, :, None
-            ]
+            ] + initial_state[0][:, None]
             latent = jnp.broadcast_to(jnp.array([1.0, 0.0]), (1, len(hidden[0]), 2))
             return SimpleNamespace(
                 hidden=hidden,

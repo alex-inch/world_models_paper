@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 from flax import nnx
 from wm_test_utils import all_zero
@@ -37,7 +38,8 @@ def test_valid_grads():
     def loss_fn(rssm: RSSM, data: tuple[jax.Array, ...]):
         "This is not the true loss, just a dummy to check gradient flows"
         embedding, prev_action, is_first = data
-        out = rssm(embedding, prev_action, is_first)
+        initial_state = rssm.initialize_state(embedding.shape[0])
+        out = rssm(embedding, prev_action, is_first, initial_state)
         hidden, latent, prior, _posterior = out.to_tuple()  # type: ignore
         per_step_loss = (
             jnp.mean(hidden**2, axis=-1)
@@ -67,7 +69,32 @@ def test_shape_handling():
 
     with pytest.raises(AssertionError):
         # screw up the dimensions - should raise
-        rssm(embedding[0], prev_action, is_first)
+        rssm(embedding[0], prev_action, is_first, rssm.initialize_state(BATCH_SIZE))
+
+
+@pytest.mark.parametrize("is_first", [False, True])
+def test_supplied_memory_is_used_unless_episode_restarts(is_first):
+    cfg = DreamerConfig(wm_hidden_dim=4, num_latent_dists=2, num_latent_classes=3)
+    rssm = RSSM(cfg, nnx.Rngs(42))
+    fresh = nnx.clone(rssm, arrays=True)
+    embedding = jnp.zeros((1, 1, cfg.embedding_dim))
+    action = jnp.full((1, 1, cfg.action_dim), 0.25)
+    reset = jnp.array([[is_first]])
+    initial_state = (
+        jnp.full((1, cfg.wm_hidden_dim), 0.75),
+        jnp.tile(jnp.array([1.0, 0.0, 0.0]), (1, cfg.num_latent_dists)),
+    )
+
+    observed = rssm(embedding, action, reset, initial_state)
+    from_empty = fresh(embedding, action, reset, fresh.initialize_state(1))
+
+    if is_first:
+        for actual, expected in zip(
+            jax.tree.leaves(observed), jax.tree.leaves(from_empty), strict=True
+        ):
+            np.testing.assert_array_equal(actual, expected)
+    else:
+        assert not np.allclose(observed.hidden, from_empty.hidden)
 
 
 def test_config_inferred_vals():

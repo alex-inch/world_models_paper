@@ -53,7 +53,8 @@ def _predict_action(wm, state, action):
 
 @nnx.jit(static_argnames="horizon")
 def _reference_diagnostics(wm, actor, critic, target_critic, batch, starts, horizon):
-    states = wm.run_rssm(batch)
+    initial_state = wm.rssm.initialize_state(batch.image.shape[0])
+    states = wm.run_rssm(batch, initial_state)
     reward_logits, _ = wm._predict_reward_and_continue(states.joint_latent)
 
     # Every branch starts from an observed posterior sample with its full history.
@@ -331,7 +332,8 @@ def evaluate_rollouts(
         reference_length = min(256, episode_length)
         fixed_batch = jax.tree.map(lambda x: x[:, :reference_length].copy(), batch)
 
-    predictions = world_model(batch)
+    initial_state = world_model.rssm.initialize_state(batch.image.shape[0])
+    predictions = world_model(batch, initial_state)
     reconstruction = predictions.image[0]
 
     # Start from a posterior state after five observations, then stop using images.

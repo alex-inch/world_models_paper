@@ -47,9 +47,11 @@ class DreamerWM(nnx.Module):
         rewards_symlog = twohot_decode(jax.nn.softmax(logits), self.reward_bins)
         return symexp(rewards_symlog)
 
-    def __call__(self, input: DreamerBatch) -> DreamerWMOut:
+    def __call__(
+        self, input: DreamerBatch, initial_state: tuple[Array, Array]
+    ) -> DreamerWMOut:
         embedding = self.encoder(input.image)
-        wm_pred = self.rssm(embedding, input.prev_action, input.is_first)
+        wm_pred = self.rssm(embedding, input.prev_action, input.is_first, initial_state)
 
         joint_latent = wm_pred.joint_latent
         image_pred = self.decoder(joint_latent)
@@ -64,9 +66,11 @@ class DreamerWM(nnx.Module):
             hidden=wm_pred.hidden,
         )
 
-    def run_rssm(self, input: DreamerBatch) -> RSSMOut:
+    def run_rssm(
+        self, input: DreamerBatch, initial_state: tuple[Array, Array]
+    ) -> RSSMOut:
         embedding = self.encoder(input.image)
-        return self.rssm(embedding, input.prev_action, input.is_first)
+        return self.rssm(embedding, input.prev_action, input.is_first, initial_state)
 
     def init_imagination_state(
         self, image: Shaped[Array, "Batch Height Width Channels"]

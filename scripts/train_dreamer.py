@@ -21,6 +21,7 @@ from dreamer.buffer import (
     collect_new_rollouts,
     get_batch,
     init_buffer,
+    refresh_model_states,
 )
 from dreamer.checkpoints import save_checkpoint
 from dreamer.diagnostics import evaluate_rollouts
@@ -41,10 +42,10 @@ class TrainArgs:
     env_id: str = "CarRacing-v3"
     # Training hparams
     buffer_size: int = 100
-    outer_train_steps: int = 20
+    outer_train_steps: int = 100
     batch_size: int = 16
     seq_length: int = 25
-    lr: float = 1e-4
+    lr: float = 3e-4
     adamw_eps: float = 1e-5
     collect_interval: int = 100
     imagination_horizon: int = 15
@@ -68,6 +69,7 @@ critic_value_and_grad = nnx.value_and_grad(critic_objective)
         "critic",
         "critic_optim",
         "target_critic",
+        "replay_buffer",
     ],
     static_argnames="args",
 )
@@ -84,14 +86,17 @@ def model_learning_step(
     key: Array,
 ):
     batch_key, imagination_key = jax.random.split(key)
-    batch = get_batch(replay_buffer, args.batch_size, args.seq_length, batch_key)
+    batch, ctxt = get_batch(replay_buffer, args.batch_size, args.seq_length, batch_key)
 
     # World model learning
-    (wm_loss, wm_sub_losses), wm_grads = wm_value_and_grad(wm, batch)
+    initial_state = ctxt.initial_state
+    (wm_loss, wm_sub_losses), wm_grads = wm_value_and_grad(wm, batch, initial_state)
     wm_optim.update(wm, wm_grads)
 
     # Behaviour learning
-    model_states = wm.run_rssm(batch)
+    model_states = wm.run_rssm(batch, initial_state)
+    # Note - to keep the stored RSSM states fresh, we update the buffer with whatever we've computed
+    replay_buffer = refresh_model_states(replay_buffer, ctxt, model_states)
     model_states = model_states.replace(posterior=None)  # pyrefly: ignore[missing-attribute]
 
     # Concat the batch and time dimensions. We'll run the actor in imagination across
@@ -125,7 +130,7 @@ def model_learning_step(
     )
 
     # Some bookkeeping variables to track training
-    return {
+    metrics = {
         # WM Variables
         "wm/losses/loss": wm_loss,
         "wm/losses/image_loss": wm_sub_losses.image_loss,
@@ -146,6 +151,8 @@ def model_learning_step(
         "ac/critic/grad_max": optax.tree.norm(critic_grads, jnp.inf),
     }
 
+    return metrics, replay_buffer
+
 
 def eval_step(
     envs: gym.vector.VectorEnv,
@@ -163,7 +170,7 @@ def eval_step(
     nnx.reseed(world_model, default=500_000)
     key = jax.random.key(500_000)  # Fixed seed for all eval renders
     collection_key, imagination_key = jax.random.split(key)
-    buffer = init_buffer(capacity=num_eps)
+    buffer = init_buffer(capacity=num_eps, cfg=world_model.cfg)
     buffer = collect_new_rollouts(
         buffer, envs, world_model, actor, num_eps=num_eps, key=collection_key
     )
@@ -212,7 +219,7 @@ def setup_logging(args: TrainArgs):
 
 
 def train(args: TrainArgs, envs: gym.vector.VectorEnv, run: wandb.Run):
-    replay_buffer = init_buffer(capacity=args.buffer_size)
+    replay_buffer = init_buffer(capacity=args.buffer_size, cfg=args.cfg)
 
     # Init the models and their optimisers. For now just use a shared learning rate
     # fmt: off
@@ -274,13 +281,16 @@ def train(args: TrainArgs, envs: gym.vector.VectorEnv, run: wandb.Run):
             num_eps=args.num_envs,
             key=action_key,
         )
+        # log the mean reward of the collected episodes
+        last_run_reward = replay_buffer.rewards[replay_buffer.cursor - 1, :].sum()
+        run.log({"eval/train_reward": last_run_reward})
 
         # Model Learning
         logger.info(f"Step {outer_step + 1}: Commencing model learning")
         for inner_step in range(args.collect_interval):
             # Dynamics Learning
             subkey, key = jax.random.split(key)
-            metrics = model_learning_step(
+            metrics, replay_buffer = model_learning_step(
                 wm,
                 wm_optim,
                 actor,
@@ -294,12 +304,11 @@ def train(args: TrainArgs, envs: gym.vector.VectorEnv, run: wandb.Run):
             )
 
             # Bookkeeping - wandb needs the targets to be a scalar
-            wandb_metrics = jax.device_get(metrics)
-            targets = wandb_metrics.pop("ac/targets")
-            wandb_metrics["ac/target_mean"] = float(targets.mean())
+            targets = metrics.pop("ac/targets")
+            metrics["ac/target_mean"] = float(targets.mean())
             train_step = outer_step * args.collect_interval + inner_step + 1
-            wandb_metrics["train_step"] = train_step
-            run.log(wandb_metrics)
+            metrics["train_step"] = train_step
+            run.log(metrics)
 
         #           logger.info(f"""Substep {inner_step + 1} complete with key metrics:
         #     WM Loss: {metrics["wm/losses/loss"]:.3f}

@@ -8,7 +8,7 @@ from jaxtyping import Array, Bool, Float, Int
 from loguru import logger
 
 from dreamer.actor_critic import Actor
-from dreamer.wm import DreamerWM
+from dreamer.wm import DreamerConfig, DreamerWM
 from dreamer.wm.rssm import RSSMOut
 from wm.utils.obs import crop_obs, normalise_obs
 
@@ -23,6 +23,8 @@ class BufferState:
     acts: Float[Array, "Capacity Time Action"]
     conts: Float[Array, "Capacity Time"]
     rewards: Float[Array, "Capacity Time"]
+    model_state_latent: Float[Array, "Capacity Time LatentDim"]
+    model_state_hidden: Float[Array, "Capacity Time HiddenDim"]
 
     @property
     def capacity(self) -> int:
@@ -41,10 +43,26 @@ class BufferState:
         )
 
 
+@chex.dataclass
+class ReplayContext:
+    initial_state_hidden: Float[Array, "Batch HiddenDim"]
+    initial_state_latent: Float[Array, "Batch LatentDim"]
+    batch_indices: Int[Array, " Batch #Time"]
+    time_indices: Int[Array, "Batch Time"]
+
+    @property
+    def initial_state(
+        self,
+    ) -> tuple[Float[Array, "Batch HiddenDim"], Float[Array, "Batch LatentDim"]]:
+        return self.initial_state_hidden, self.initial_state_latent
+
+
 def init_buffer(
     capacity: int = 100,
     seq_length: int = 1001,
     action_dim: int = 3,
+    *,
+    cfg: DreamerConfig,
 ) -> BufferState:
     N, T, H, W, C = capacity, seq_length, 64, 64, 3
 
@@ -55,6 +73,8 @@ def init_buffer(
         acts=jnp.zeros((N, T, action_dim), dtype=jnp.float32),
         conts=jnp.zeros((N, T), dtype=jnp.float32),
         rewards=jnp.zeros((N, T), dtype=jnp.float32),
+        model_state_hidden=jnp.zeros((N, T, cfg.wm_hidden_dim), dtype=jnp.float32),
+        model_state_latent=jnp.zeros((N, T, cfg.latent_dim), dtype=jnp.float32),
     )
 
 
@@ -65,6 +85,8 @@ def add_episodes(
     acts: Float[Array, "B T A"],
     conts: Float[Array, "B T"],
     rewards: Float[Array, "B T"],
+    model_state_hidden: Float[Array, "B T H"],
+    model_state_latent: Float[Array, "B T Z"],
 ) -> BufferState:
     chex.assert_type(obs, float)
     chex.assert_equal_shape_prefix([obs, acts, conts, rewards], prefix_len=2)
@@ -80,20 +102,42 @@ def add_episodes(
     dt = state.cursor.dtype
     indices = (state.cursor + jnp.arange(batch_size, dtype=dt)) % capacity
 
-    return state.replace(  # pyright: ignore[reportAttributeAccessIssue]
+    return state.replace(  # pyrefly: ignore[missing-attribute] - .replace is synthesised so missed by static analysis
         cursor=end % capacity,
         full=jnp.logical_or(state.full, end >= capacity),
         obs=state.obs.at[indices].set(obs),
         acts=state.acts.at[indices].set(acts),
         conts=state.conts.at[indices].set(conts),
         rewards=state.rewards.at[indices].set(rewards),
+        model_state_hidden=state.model_state_hidden.at[indices].set(model_state_hidden),
+        model_state_latent=state.model_state_latent.at[indices].set(model_state_latent),
     )
+
+
+@jax.jit
+def refresh_model_states(
+    buffer: BufferState,
+    context: ReplayContext,
+    states: RSSMOut,
+) -> BufferState:
+    # note that we want the *previous* model state associated with each step in the batch.
+    # To that end: offset by one.
+    positions = context.batch_indices, context.time_indices[:, 1:]
+    sg = jax.lax.stop_gradient
+
+    # fmt: off
+    new_hiddens = buffer.model_state_hidden.at[positions].set(sg(states.hidden[:, :-1]))
+    new_latents = buffer.model_state_latent.at[positions].set(sg(states.latent_sample[:, :-1]))
+
+    # pyrefly: ignore[missing-attribute] - pyrefly misses synthesised method
+    return buffer.replace(model_state_hidden=new_hiddens, model_state_latent=new_latents)
+    # fmt: on
 
 
 @jax.jit(static_argnames=["batch_size", "seq_length"])
 def get_batch(
     state: BufferState, batch_size: int, seq_length: int, key: Array
-) -> DreamerBatch:
+) -> tuple[DreamerBatch, ReplayContext]:
     # First we select episodes. For each episode, selected, sample a sequence uniformly in the range
     # between [0,ep_end], where ep_end is marked by the first instance of the continue value going to
     # zero (cont looks like [1,1,1,0,0,0])
@@ -117,23 +161,32 @@ def get_batch(
         maxval=episode_ends - seq_length + 2,
     )
 
-    # This is a bit vestigial. The original Dreamer implementation uses it to pack multiple sequences into one
-    # batch, but my implementation only uses it for the first steps of the batch
-    is_first = jnp.zeros((batch_size, seq_length), dtype=jnp.bool)
-    is_first = is_first.at[:, 0].set(True)
-
     # [B, L]
     time_indices = seq_starts[:, None] + jnp.arange(seq_length)[None, :]
     # [B, 1] - broadcasts against [B, L] when we used these to slice the arrays
     batch_indices = episode_indices[:, None]
 
-    return DreamerBatch(
-        image=state.obs[batch_indices, time_indices],
-        prev_action=state.acts[batch_indices, time_indices],
-        cont=state.conts[batch_indices, time_indices],
-        reward=state.rewards[batch_indices, time_indices],
+    # This is a bit vestigial. The original Dreamer implementation uses it to
+    # cram samples from multiple episodes into one sequence within a batch, but my
+    # implementation only uses it for the first steps of the batch
+    is_first = time_indices == 0
+
+    positions = (batch_indices, time_indices)
+    batch = DreamerBatch(
+        image=state.obs[positions],
+        prev_action=state.acts[positions],
+        cont=state.conts[positions],
+        reward=state.rewards[positions],
         is_first=is_first,
     )
+
+    context = ReplayContext(
+        initial_state_hidden=state.model_state_hidden[episode_indices, seq_starts],
+        initial_state_latent=state.model_state_latent[episode_indices, seq_starts],
+        batch_indices=batch_indices,
+        time_indices=time_indices,
+    )
+    return batch, context
 
 
 def policy_step(
@@ -179,7 +232,7 @@ def choose_action(
     key: Array,
 ) -> tuple[tuple[Array, Array], Array]:
     """Get the policy's action, based on the world_model's recurrent state."""
-    carry, action, _, _ = policy_step(
+    carry, action, _model_state, _action_dist = policy_step(
         world_model, actor, carry, image, prev_action, is_first, key
     )
     return carry, action
@@ -209,17 +262,27 @@ def collect_new_rollouts(
         )
         rollout_conts = np.zeros((num_envs, buffer.episode_length), dtype=np.float32)
         rollout_rewards = np.zeros_like(rollout_conts)
+        rollout_hidden = np.zeros(
+            (num_envs, buffer.episode_length, world_model.cfg.wm_hidden_dim),
+            dtype=np.float32,
+        )
+        rollout_latent = np.zeros(
+            (num_envs, buffer.episode_length, world_model.cfg.latent_dim),
+            dtype=np.float32,
+        )
 
         reset_key, key = jax.random.split(key)
         seed = int(jax.random.randint(reset_key, (), 0, np.iinfo(np.int32).max))
         obs, _ = envs.reset(seed=seed)
         image = normalise_obs(crop_obs(obs)) - 0.5
+        carry = world_model.rssm.initialize_state(num_envs)
         # The first entry for each episode is the initial state. Note we're implicitly
         # setting the initial action and reward to zero, these correspond to the action
         # and reward "before" the initial state, so that's fine.
         rollout_obs[:, 0] = image
         rollout_conts[:, 0] = 1
-        carry = world_model.rssm.initialize_state(num_envs)
+        rollout_hidden[:, 0] = carry[0]
+        rollout_latent[:, 0] = carry[1]
         prev_action = jnp.zeros((num_envs, action_dim), dtype=jnp.float32)
         is_first = jnp.ones(num_envs, dtype=jnp.bool_)
 
@@ -244,6 +307,9 @@ def collect_new_rollouts(
             rollout_acts[:, t] = acts
             # store raw reward, transform happens in the loss calc
             rollout_rewards[:, t] = rwds
+            # Here we're storing the previous carry
+            rollout_hidden[:, t] = carry[0]
+            rollout_latent[:, t] = carry[1]
 
             # Add the episode end to train the continue predictor
             rollout_conts[:, t] = ~(terminated | truncated)
@@ -256,6 +322,8 @@ def collect_new_rollouts(
             rollout_acts,
             rollout_conts,
             rollout_rewards,
+            rollout_hidden,
+            rollout_latent,
         )
 
     return buffer

@@ -1,8 +1,7 @@
 """Run model forwards and imagination before computing the losses defined on each class."""
 
-from jax import Array
 from jax.lax import stop_gradient as sg
-from jaxtyping import Float
+from jaxtyping import Array, Float
 
 from dreamer.actor_critic import Actor, Critic
 from dreamer.imagine import run_imagination_rollout
@@ -10,8 +9,10 @@ from dreamer.wm import DreamerBatch, DreamerWM
 from dreamer.wm.rssm import RSSMOut
 
 
-def wm_objective(wm: DreamerWM, batch: DreamerBatch):
-    preds = wm(batch)
+def wm_objective(
+    wm: DreamerWM, batch: DreamerBatch, initial_state: tuple[Array, Array]
+):
+    preds = wm(batch, initial_state)
     losses = wm.loss_fn(preds, batch, wm.cfg)
     loss = (
         wm.cfg.kl_beta * losses.kl_loss

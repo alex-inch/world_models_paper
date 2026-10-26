@@ -43,7 +43,7 @@ def run_wm():
     )
     model = DreamerWM(cfg, rngs=rngs)
     batch = get_data(rngs)
-    out = model(batch)
+    out = model(batch, model.rssm.initialize_state(batch.image.shape[0]))
 
     return model, cfg, batch, out
 
@@ -99,7 +99,7 @@ def test_kl_gradient_flow(run_wm):
     # If alpha is 1.0, there should be no gradient to the prior network, and vice versa
     @nnx.grad
     def test_loss(model: DreamerWM, batch, alpha):
-        out = model(batch)
+        out = model(batch, model.rssm.initialize_state(batch.image.shape[0]))
         kl = compute_balanced_kl(out.latent_posterior, out.latent_prior, alpha)
         return kl
 

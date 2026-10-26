@@ -94,15 +94,15 @@ class RSSM(nnx.Module):
         embedding: Shaped[Array, "B T E"],
         action: Shaped[Array, "B T A"],
         is_first: Shaped[Array, "B T"],
+        initial_state: tuple[Shaped[Array, "B H"], Shaped[Array, "B Z"]],
     ) -> RSSMOut:
         chex.assert_rank([embedding, action], 3)
         chex.assert_equal_shape_prefix([embedding, action, is_first], 2)
         chex.assert_axis_dimension(embedding, 2, self.cfg.embedding_dim)
         chex.assert_axis_dimension(action, 2, self.cfg.action_dim)
-        B, _T, _E = embedding.shape
 
-        state = self.initialize_state(B)
-        _, out = self.unroll(state, (embedding, action, is_first))
+        initial_state = jax.lax.stop_gradient(initial_state)
+        _carry, out = self.unroll(initial_state, (embedding, action, is_first))
 
         hidden, latent, prior, posterior = out
 
