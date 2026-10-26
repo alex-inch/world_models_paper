@@ -155,7 +155,7 @@ def eval_step(
     target_critic: Critic,
     num_eps: int,
     fps: int = 10,
-    imagination_horizon: int = 100,
+    imagination_horizon: int = 15,
     fixed_batch: DreamerBatch | None = None,
 ):
     logger.info("Beginning eval step")

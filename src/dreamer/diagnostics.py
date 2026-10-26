@@ -264,13 +264,14 @@ def format_rollout_gif_data(observations: Float[Array, "T H W C"], fps: int = 50
     return rearrange(frames_rescaled, "T H W C -> T C H W")
 
 
-def format_eval_video(rollout, reconstruction, imagination, imagination_start, fps):
+def format_eval_video(rollout, reconstruction, imagination, imagination_starts, fps):
     # Align imagination with its starting observation before downsampling the video.
-    imagined_rollout = np.full(rollout.shape, -0.5, dtype=np.float32)
-    imagination_end = min(imagination_start + len(imagination), len(rollout))
-    imagined_rollout[imagination_start:imagination_end] = np.asarray(
-        imagination[: imagination_end - imagination_start]
-    )
+    # Show posterior reconstructions during each five-frame observation window.
+    imagined_rollout = np.asarray(reconstruction).copy()
+    for start, imagined_frames in zip(imagination_starts, np.asarray(imagination)):
+        first_frame = start + 1  # The decoded initial state is already in the context.
+        end = min(first_frame + len(imagined_frames), len(rollout))
+        imagined_rollout[first_frame:end] = imagined_frames[: end - first_frame]
     comparison = np.concatenate([rollout, reconstruction, imagined_rollout], axis=2)
     frames = format_rollout_gif_data(comparison, fps)
 
@@ -300,7 +301,7 @@ def evaluate_rollouts(
     imagination_key,
     *,
     fps=10,
-    imagination_horizon=100,
+    imagination_horizon=15,
     fixed_batch=None,
 ):
     """Build evaluation metrics and videos, retaining one fixed reference recording."""
@@ -334,12 +335,15 @@ def evaluate_rollouts(
     reconstruction = predictions.image[0]
 
     # Start from a posterior state after five observations, then stop using images.
+    # Repeat this pattern throughout the recording, batching the imagined branches.
     context_steps = 5
-    start = context_steps - 1
+    imagination_starts = np.arange(
+        context_steps - 1, len(rollout) - 1, context_steps + imagination_horizon
+    )
     initial_state = RSSMOut(
-        hidden=predictions.hidden[:, start],
-        latent_sample=predictions.latent_sample[:, start],
-        prior=predictions.latent_prior[:, start],
+        hidden=predictions.hidden[0, imagination_starts],
+        latent_sample=predictions.latent_sample[0, imagination_starts],
+        prior=predictions.latent_prior[0, imagination_starts],
     )
     trajectory, _, _ = run_imagination_rollout(
         world_model,
@@ -349,9 +353,10 @@ def evaluate_rollouts(
         horizon=imagination_horizon,
         key=imagination_key,
     )
-    imagined_frames = world_model.decoder(trajectory.state.joint_latent)[0]
+    # Each branch includes its initial posterior state; only render future states.
+    imagined_frames = world_model.decoder(trajectory.state.joint_latent[:, 1:])
     rollout_video = format_eval_video(
-        rollout, reconstruction, imagined_frames, start, fps
+        rollout, reconstruction, imagined_frames, imagination_starts, fps
     )
 
     rewards = buffer.rewards  # [T H]
@@ -367,8 +372,8 @@ def evaluate_rollouts(
             caption=(
                 f"Mean Return: {float(returns.mean()):.0f}. "
                 f"Policy | Reconstruction | Imagination. "
-                f"Imagination starts after {context_steps} observations and runs for "
-                f"{imagination_horizon} steps; its panel is blank outside that window."
+                f"Imagination repeats {context_steps} posterior reconstructions "
+                f"followed by {imagination_horizon} imagined steps."
             ),
             fps=fps,
             format="gif",

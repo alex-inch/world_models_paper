@@ -3,11 +3,13 @@ from types import SimpleNamespace
 import distrax
 import jax.numpy as jnp
 import numpy as np
+import pytest
 from flax import nnx
 
 from dreamer.actor_critic import Actor
 from dreamer.diagnostics import (
     _reference_diagnostics,
+    evaluate_rollouts,
     policy_metrics,
     reference_metrics,
 )
@@ -155,3 +157,69 @@ def test_reference_metrics_are_repeatable_and_leave_model_state_unchanged():
         "eval/latents/category_usage",
     ):
         assert name in first
+
+
+@pytest.mark.parametrize("fps", [10, 50])
+def test_eval_video_repeats_context_and_imagination_in_sync(monkeypatch, fps):
+    class VideoWorldModel(CountingWorldModel):
+        def __call__(self, batch):
+            # Posterior states jump ten units per frame; imagination advances
+            # only one. This makes resets and off-by-one errors visible.
+            hidden = (10 * jnp.arange(batch.image.shape[1], dtype=jnp.float32))[
+                None, :, None
+            ]
+            latent = jnp.broadcast_to(jnp.array([1.0, 0.0]), (1, len(hidden[0]), 2))
+            return SimpleNamespace(
+                hidden=hidden,
+                latent_sample=latent,
+                latent_prior=jnp.zeros((1, len(hidden[0]), 1, 2)),
+                image=self.decoder(jnp.concatenate([hidden, latent], axis=-1)),
+            )
+
+        def decoder(self, features):
+            pixels = features[..., :1] / 1000 - 0.5
+            return jnp.broadcast_to(
+                pixels[..., None, None, :], (*features.shape[:-1], 2, 4, 3)
+            )
+
+    monkeypatch.setattr("dreamer.diagnostics.policy_metrics", lambda *args: {})
+    monkeypatch.setattr("dreamer.diagnostics.reference_metrics", lambda *args: {})
+    monkeypatch.setattr(
+        "dreamer.diagnostics.wandb.Video",
+        lambda frames, **kwargs: SimpleNamespace(frames=frames, **kwargs),
+    )
+    # Two complete cycles, then five context frames and a partial imagined tail.
+    buffer = SimpleNamespace(
+        obs=jnp.zeros((1, 47, 2, 4, 3)),
+        acts=jnp.zeros((1, 47, 3)),
+        rewards=jnp.zeros((1, 47)),
+        conts=jnp.ones((1, 47)),
+    )
+    wm = VideoWorldModel()
+    metrics, _ = evaluate_rollouts(
+        buffer,
+        wm,
+        ConstantPolicy(),
+        LinearCritic(1),
+        LinearCritic(2),
+        wm.rngs(),
+        fps=fps,
+    )
+    video = metrics["eval/policy"]
+    expected_states = np.concatenate([
+        10 * np.arange(5),
+        40 + np.arange(1, 16),
+        10 * np.arange(20, 25),
+        240 + np.arange(1, 16),
+        10 * np.arange(40, 45),
+        440 + np.arange(1, 3),
+    ])
+    expected_pixels = (255 * expected_states / 1000).astype(np.uint8)[:: 50 // fps]
+    imagination_panel = video.frames[:, :, 20:, 8:]
+    np.testing.assert_allclose(
+        imagination_panel,
+        np.broadcast_to(expected_pixels[:, None, None, None], imagination_panel.shape),
+        atol=1,
+    )
+    assert len(video.frames) == len(expected_pixels)
+    assert "5 posterior reconstructions followed by 15 imagined steps" in video.caption
