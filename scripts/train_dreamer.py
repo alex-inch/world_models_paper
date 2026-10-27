@@ -51,8 +51,9 @@ class TrainArgs:
     imagination_horizon: int = 15
     steps_per_eval: int = 1
     num_eval_episodes: int = 64
-    debug: bool = False
     checkpoint_dir: str = "experiments/dreamer/checkpoints"
+    debug: bool = False
+    profile: bool = False
 
 
 wm_value_and_grad = nnx.value_and_grad(wm_objective, has_aux=True)
@@ -373,6 +374,10 @@ def main(args: TrainArgs):
     if args.backend is not None:
         jax.config.update("jax_platforms", args.backend)
     logger.info(f"Using JAX devices: {jax.devices()}")
+
+    if args.profile:
+        jax.profiler.start_server(9999)
+        logger.info("JAX profiler listening on localhost:9999")
 
     args, run = setup_logging(args)
     args_pprint = pformat(asdict(args), sort_dicts=False)
