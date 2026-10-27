@@ -24,7 +24,7 @@ from dreamer.buffer import (
     refresh_model_states,
 )
 from dreamer.checkpoints import save_checkpoint
-from dreamer.diagnostics import evaluate_rollouts
+from dreamer.diagnostics import evaluate_rollouts, new_episode_cumulative_rewards
 from dreamer.training import actor_objective, critic_objective, wm_objective
 from dreamer.wm import DreamerBatch, DreamerWM
 from dreamer.wm.config import DreamerConfig
@@ -229,7 +229,7 @@ def train(args: TrainArgs, envs: gym.vector.VectorEnv, run: wandb.Run):
     target_critic = nnx.clone(critic, arrays=True) # slow version of the critic
 
     tx = optax.chain(
-        optax.clip_by_global_norm(100),
+        optax.transforms.adaptive_grad_clip(0.3),
         optax.adamw(args.lr, eps=args.adamw_eps),
     )
     wm_optim     = nnx.Optimizer(wm,     tx=tx, wrt=nnx.Param)
@@ -282,8 +282,14 @@ def train(args: TrainArgs, envs: gym.vector.VectorEnv, run: wandb.Run):
             key=action_key,
         )
         # log the mean reward of the collected episodes
-        last_run_reward = replay_buffer.rewards[replay_buffer.cursor - 1, :].sum()
-        run.log({"eval/train_reward": last_run_reward})
+        mean_rwd, median_rwd = new_episode_cumulative_rewards(
+            replay_buffer, args.num_envs
+        )
+        run.log({
+            "eval/episodic_reward/train/mean": mean_rwd,
+            "eval/episodic_reward/train/median": median_rwd,
+            "train_step": train_step,
+        })
 
         # Model Learning
         logger.info(f"Step {outer_step + 1}: Commencing model learning")
