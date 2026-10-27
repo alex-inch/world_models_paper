@@ -1,5 +1,6 @@
 """Evaluation diagnostics for policy behaviour, reward prediction and imagination."""
 
+from dreamer.buffer import BufferState
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -386,3 +387,16 @@ def evaluate_rollouts(
         reference_metrics(world_model, actor, critic, target_critic, fixed_batch)
     )
     return metrics, fixed_batch
+
+
+def new_episode_cumulative_rewards(
+    buffer: BufferState, num_eps: int
+) -> tuple[float, float]:
+    # cursor points to the next insertion position; wrap around if needed.
+    indices = (buffer.cursor - num_eps + jnp.arange(num_eps)) % buffer.capacity
+
+    rewards = buffer.rewards[indices, 1:]
+    valid = jnp.cumprod(buffer.conts[indices, :-1], axis=1)
+
+    episode_returns = (rewards * valid).sum(axis=1)
+    return float(episode_returns.mean()), float(jnp.median(episode_returns))
