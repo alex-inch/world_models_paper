@@ -380,7 +380,10 @@ def main(args: TrainArgs):
 
     try:
         envs = gym.make_vec(
-            id=args.env_id, num_envs=args.num_envs, vectorization_mode="async"
+            id=args.env_id,
+            num_envs=args.num_envs,
+            vectorization_mode="async",
+            vector_kwargs={"context": "spawn"},
         )
         train(args, envs, run)
     except BaseException:  # BaseException is normally wrong, but ok cos we re-raise
