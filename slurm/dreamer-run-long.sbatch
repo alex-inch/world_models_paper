@@ -15,10 +15,11 @@ cd "$DATA/world_models_paper"
 srun .venv/bin/python -u scripts/train_dreamer.py \
   --name "arc-${SLURM_JOB_ID}-long" \
   --backend cuda \
-  --collect-interval 1600 \
+  --collect-interval 2000 \
   --steps-per-eval 10 \
+  --steps-per-checkpoint 5 \
   --num-eval-episodes 16 \
   --cfg.actor-entropy-weight 0.0005 \
   --seq-length 64 \
-  --batch-size 16 \
+  --batch-size 32 \
   --outer-train-steps 200

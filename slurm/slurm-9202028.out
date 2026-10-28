@@ -1,0 +1,89 @@
+2026-10-28 17:02:11.836 | INFO     | __main__:main:384 - Using JAX devices: [CudaDevice(id=0)]
+wandb: [wandb.login()] Loaded credentials for https://api.forge.coreweave.com from /home/pemb7576/.netrc.
+wandb: Currently logged in as: alex-inch (alex-inch-ori) to https://api.forge.coreweave.com. Use `wandb login --relogin` to force relogin
+wandb: setting up run gp8l0xmb
+wandb: Tracking run with wandb version 0.31.0
+wandb: Run data is saved locally in /data/engs-a2i/pemb7576/world_models_paper/wandb/run-20261028_170213-gp8l0xmb
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run arc-9202028-long
+wandb: ⭐️ View project at https://forge.coreweave.com/wandb/alex-inch-ori/dreamer-reimplementation
+wandb: 🚀 View run at https://forge.coreweave.com/wandb/alex-inch-ori/dreamer-reimplementation/runs/gp8l0xmb
+2026-10-28 17:02:14.035 | INFO     | __main__:main:392 - Beginning training run with args:
+{'name': 'arc-9202028-long',
+ 'cfg': {'num_latent_classes': 32,
+         'num_latent_dists': 32,
+         'action_dim': 3,
+         'wm_hidden_dim': 1024,
+         'img_height': 64,
+         'img_width': 64,
+         'img_channels': 3,
+         'activation': 'elu',
+         'kl_alpha': 0.8,
+         'kl_beta': 0.1,
+         'td_lambda': 0.95,
+         'agent_hidden_dim': 100,
+         'discount': 0.997,
+         'reward_encoding_bins': 127,
+         'reward_encoding_max_exp': 9,
+         'actor_entropy_weight': 0.0005},
+ 'backend': 'cuda',
+ 'seed': 20,
+ 'num_envs': 8,
+ 'env_id': 'CarRacing-v3',
+ 'buffer_size': 100,
+ 'outer_train_steps': 200,
+ 'batch_size': 32,
+ 'seq_length': 64,
+ 'wm_lr': 0.0001,
+ 'actor_lr': 4e-05,
+ 'policy_lr': 0.0001,
+ 'adamw_eps': 1e-05,
+ 'collect_interval': 2000,
+ 'imagination_horizon': 15,
+ 'steps_per_eval': 10,
+ 'steps_per_checkpoint': 5,
+ 'num_eval_episodes': 16,
+ 'checkpoint_dir': 'experiments/dreamer/checkpoints',
+ 'debug': False,
+ 'profile': False}
+2026-10-28 17:02:49.188 | INFO     | __main__:train:257 - world_model: 15,051,619 trainable parameters
+2026-10-28 17:02:49.189 | INFO     | __main__:train:257 - actor: 215,606 trainable parameters
+2026-10-28 17:02:49.189 | INFO     | __main__:train:257 - critic: 215,101 trainable parameters
+2026-10-28 17:02:49.537 | INFO     | __main__:train:275 - Saving model checkpoints in experiments/dreamer/checkpoints/gp8l0xmb
+2026-10-28 17:02:49.664 | INFO     | __main__:train:287 - Step 1: Commencing data collection
+2026-10-28 17:02:49.665 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-10-28 17:24:36.692 | INFO     | __main__:train:307 - Step 1: Commencing model learning
+W1028 17:24:50.964253 2496299 cuda_timer.cc:88] Delay kernel timed out: measured time has sub-optimal accuracy. There may be a missing warmup execution, please investigate in Nsight Systems.
+W1028 17:24:56.038890 2496293 cuda_timer.cc:88] Delay kernel timed out: measured time has sub-optimal accuracy. There may be a missing warmup execution, please investigate in Nsight Systems.
+2026-10-28 17:30:28.450 | INFO     | __main__:eval_step:172 - Beginning eval step
+2026-10-28 17:30:28.811 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 16 rollouts of 1000 transitions
+W1028 18:08:32.202795 2496302 cuda_timer.cc:88] Delay kernel timed out: measured time has sub-optimal accuracy. There may be a missing warmup execution, please investigate in Nsight Systems.
+W1028 18:08:44.784201 2496291 cuda_timer.cc:88] Delay kernel timed out: measured time has sub-optimal accuracy. There may be a missing warmup execution, please investigate in Nsight Systems.
+wandb: Encoding video...
+2026-10-28 18:08:57.236 | INFO     | __main__:eval_step:193 - Eval step completed with mean return -77.29
+2026-10-28 18:08:58.801 | INFO     | __main__:train:287 - Step 2: Commencing data collection
+2026-10-28 18:08:58.801 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-10-28 18:20:30.661 | INFO     | __main__:train:307 - Step 2: Commencing model learning
+2026-10-28 18:25:40.313 | INFO     | __main__:train:287 - Step 3: Commencing data collection
+2026-10-28 18:25:40.313 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-10-28 18:38:03.573 | INFO     | __main__:train:307 - Step 3: Commencing model learning
+2026-10-28 18:43:12.562 | INFO     | __main__:train:287 - Step 4: Commencing data collection
+2026-10-28 18:43:12.563 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-10-28 18:54:38.925 | INFO     | __main__:train:307 - Step 4: Commencing model learning
+2026-10-28 18:59:48.091 | INFO     | __main__:train:287 - Step 5: Commencing data collection
+2026-10-28 18:59:48.091 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-10-28 19:15:18.097 | INFO     | __main__:train:307 - Step 5: Commencing model learning
+2026-10-28 19:20:27.130 | INFO     | __main__:train:287 - Step 6: Commencing data collection
+2026-10-28 19:20:27.131 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-10-28 19:45:41.721 | INFO     | __main__:train:307 - Step 6: Commencing model learning
+2026-10-28 19:50:52.170 | INFO     | __main__:train:287 - Step 7: Commencing data collection
+2026-10-28 19:50:52.171 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-10-28 20:17:01.341 | INFO     | __main__:train:307 - Step 7: Commencing model learning
+2026-10-28 20:22:10.220 | INFO     | __main__:train:287 - Step 8: Commencing data collection
+2026-10-28 20:22:10.221 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-10-28 20:40:45.318 | INFO     | __main__:train:307 - Step 8: Commencing model learning
+2026-10-28 20:45:54.531 | INFO     | __main__:train:287 - Step 9: Commencing data collection
+2026-10-28 20:45:54.531 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-10-28 21:08:26.560 | INFO     | __main__:train:307 - Step 9: Commencing model learning
+2026-10-28 21:13:35.266 | INFO     | __main__:train:287 - Step 10: Commencing data collection
+2026-10-28 21:13:35.266 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
