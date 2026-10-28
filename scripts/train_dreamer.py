@@ -52,6 +52,7 @@ class TrainArgs:
     collect_interval: int = 100
     imagination_horizon: int = 15
     steps_per_eval: int = 1
+    steps_per_checkpoint: int = 2
     num_eval_episodes: int = 64
     checkpoint_dir: str = "experiments/dreamer/checkpoints"
     debug: bool = False
@@ -327,12 +328,7 @@ def train(args: TrainArgs, envs: gym.vector.VectorEnv, run: wandb.Run):
             metrics["train_step"] = train_step
             run.log(metrics)
 
-        #           logger.info(f"""Substep {inner_step + 1} complete with key metrics:
-        #     WM Loss: {metrics["wm/losses/loss"]:.3f}
-        #  Actor Loss: {metrics["ac/actor/loss"]:.3f}
-        # Critic Loss: {metrics["ac/critic/loss"]:.3f}""")
-
-        if outer_step % args.steps_per_eval == 0:
+        if outer_step % args.steps_per_checkpoint == 0:
             checkpoint_metadata["train_step"] = train_step
             checkpoint_metadata["env_steps"] = (
                 (outer_step + 1) * args.num_envs * (replay_buffer.episode_length - 1)
@@ -345,6 +341,8 @@ def train(args: TrainArgs, envs: gym.vector.VectorEnv, run: wandb.Run):
                 checkpoint_metadata,
             )
             last_checkpoint_step = train_step
+
+        if outer_step % args.steps_per_eval == 0:
             eval_metrics, fixed_eval_batch = eval_step(
                 envs,
                 wm,
