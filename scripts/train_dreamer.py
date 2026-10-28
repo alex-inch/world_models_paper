@@ -45,7 +45,9 @@ class TrainArgs:
     outer_train_steps: int = 100
     batch_size: int = 16
     seq_length: int = 25
-    lr: float = 3e-4
+    wm_lr: float = 1e-4
+    actor_lr: float = 4e-5
+    policy_lr: float = 1e-4
     adamw_eps: float = 1e-5
     collect_interval: int = 100
     imagination_horizon: int = 15
@@ -222,20 +224,28 @@ def setup_logging(args: TrainArgs):
 def train(args: TrainArgs, envs: gym.vector.VectorEnv, run: wandb.Run):
     replay_buffer = init_buffer(capacity=args.buffer_size, cfg=args.cfg)
 
-    # Init the models and their optimisers. For now just use a shared learning rate
+    # Init the models and their optimisers
     # fmt: off
     wm           = DreamerWM(cfg=args.cfg, rngs=nnx.Rngs(args.seed + 1))
     actor        = Actor(cfg=args.cfg,     rngs=nnx.Rngs(args.seed + 2))
     critic       = Critic(cfg=args.cfg,    rngs=nnx.Rngs(args.seed + 3))
     target_critic = nnx.clone(critic, arrays=True) # slow version of the critic
 
-    tx = optax.chain(
+    wm_tx = optax.chain(
         optax.transforms.adaptive_grad_clip(0.3),
-        optax.adamw(args.lr, eps=args.adamw_eps),
+        optax.adamw(args.wm_lr, eps=args.adamw_eps),
     )
-    wm_optim     = nnx.Optimizer(wm,     tx=tx, wrt=nnx.Param)
-    actor_optim  = nnx.Optimizer(actor,  tx=tx, wrt=nnx.Param)
-    critic_optim = nnx.Optimizer(critic, tx=tx, wrt=nnx.Param)
+    wm_optim     = nnx.Optimizer(wm,     tx=wm_tx, wrt=nnx.Param)
+    actor_tx = optax.chain(
+        optax.transforms.adaptive_grad_clip(0.3),
+        optax.adamw(args.actor_lr, eps=args.adamw_eps),
+    )
+    actor_optim  = nnx.Optimizer(actor,  tx=actor_tx, wrt=nnx.Param)
+    critic_tx = optax.chain(
+        optax.transforms.adaptive_grad_clip(0.3),
+        optax.adamw(args.actor_lr, eps=args.adamw_eps),
+    )
+    critic_optim = nnx.Optimizer(critic, tx=critic_tx, wrt=nnx.Param)
     # fmt: on
 
     parameter_counts = {
