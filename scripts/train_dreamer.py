@@ -94,15 +94,18 @@ def model_learning_step(
     batch, ctxt = get_batch(replay_buffer, args.batch_size, args.seq_length, batch_key)
 
     # World model learning
+    # TODO: attach initial state to the batch
     initial_state = ctxt.initial_state
-    (wm_loss, wm_sub_losses), wm_grads = wm_value_and_grad(wm, batch, initial_state)
+    (wm_loss, (wm_sub_losses, model_states)), wm_grads = wm_value_and_grad(
+        wm, batch, initial_state
+    )
     wm_optim.update(wm, wm_grads)
 
     # Behaviour learning
-    model_states = wm.run_rssm(batch, initial_state)
-    # Note - to keep the stored RSSM states fresh, we update the buffer with whatever we've computed
+    # Note - to keep the stored RSSM states fresh, we update the buffer with whatever we've computed.
+    # Also remove the posterior for the imagination training
     replay_buffer = refresh_model_states(replay_buffer, ctxt, model_states)
-    model_states = model_states.replace(posterior=None)  # pyrefly: ignore[missing-attribute]
+    model_states = model_states.replace(posterior=None)
 
     # Concat the batch and time dimensions. We'll run the actor in imagination across
     # all of these in parallel.
@@ -145,7 +148,7 @@ def model_learning_step(
         "wm/grad_norm": optax.tree.norm(wm_grads),
         "wm/grad_max": optax.tree.norm(wm_grads, jnp.inf),
         # Actor Critic Variables
-        "ac/targets": targets,
+        "ac/target_mean": targets.mean(),
         "ac/actor/loss": actor_loss,
         "ac/actor/reward_loss": actor_losses.reward_loss,
         "ac/actor/entropy_loss": actor_losses.entropy_loss,
@@ -303,11 +306,11 @@ def train(args: TrainArgs, envs: gym.vector.VectorEnv, run: wandb.Run):
             "eval/episodic_reward/train/median": median_rwd,
             "train_step": train_step,
         })
-
-        # Model Learning
+        # to avoid inefficiently materialising JAX arrays every iteration,
+        # store the arrays and then log them all at once
+        pending_metrics = []
         logger.info(f"Step {outer_step + 1}: Commencing model learning")
         for inner_step in range(args.collect_interval):
-            # Dynamics Learning
             subkey, key = jax.random.split(key)
             metrics, replay_buffer = model_learning_step(
                 wm,
@@ -323,11 +326,11 @@ def train(args: TrainArgs, envs: gym.vector.VectorEnv, run: wandb.Run):
             )
 
             # Bookkeeping - wandb needs the targets to be a scalar
-            targets = metrics.pop("ac/targets")
-            metrics["ac/target_mean"] = float(targets.mean())
             train_step = outer_step * args.collect_interval + inner_step + 1
             metrics["train_step"] = train_step
-            run.log(metrics)
+            pending_metrics.append(metrics)
+
+        [run.log(m) for m in pending_metrics]
 
         if outer_step % args.steps_per_checkpoint == 0:
             checkpoint_metadata["train_step"] = train_step

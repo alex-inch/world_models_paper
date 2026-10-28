@@ -20,7 +20,15 @@ def wm_objective(
         + losses.reward_loss
         + losses.image_loss
     )
-    return loss, losses
+
+    # Return these to avoid having to recompute them later in training steps.
+    model_states = RSSMOut(
+        hidden=preds.hidden,
+        latent_sample=preds.latent_sample,
+        prior=preds.latent_prior,
+        posterior=preds.latent_posterior,
+    )
+    return loss, (losses, model_states)
 
 
 def actor_objective(
