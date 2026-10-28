@@ -18,6 +18,13 @@ Results are saved incrementally under
 the JSON help align it with those samples. A killed or failed run retains results
 from completed cases.
 
+`train_dreamer.py` uses the existing optimized CarRacing renderer for collection
+and in-run evaluation when `env_id` is `CarRacing-v3`. Checkpoint metadata keeps
+the canonical `CarRacing-v3` ID, so the separate offline evaluation, inspection
+and rendering scripts continue to construct stock CarRacing. Other environment
+IDs pass through unchanged. The benchmark's `stock` cases still use stock
+CarRacing for comparison.
+
 ## Order and questions answered
 
 The lower-complexity candidates run before the full worker-count sweep:

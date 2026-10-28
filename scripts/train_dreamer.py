@@ -28,6 +28,7 @@ from dreamer.diagnostics import evaluate_rollouts, new_episode_cumulative_reward
 from dreamer.training import actor_objective, critic_objective, wm_objective
 from dreamer.wm import DreamerBatch, DreamerWM
 from dreamer.wm.config import DreamerConfig
+from wm.envs import CONTROLLER_TRAINING_ENV_SPEC
 
 
 @chex.dataclass(frozen=True)  # freeze so it's hashable
@@ -391,9 +392,20 @@ def main(args: TrainArgs):
     args_pprint = pformat(asdict(args), sort_dicts=False)
     logger.info(f"Beginning training run with args:\n{args_pprint}")
 
+    # Keep the canonical task ID in checkpoint metadata: offline evaluation and
+    # rendering use args.env_id to construct the original environment. Only this
+    # script's collection and in-run evaluation use the faster renderer.
+    training_env_id = (
+        CONTROLLER_TRAINING_ENV_SPEC if args.env_id == "CarRacing-v3" else args.env_id
+    )
+    if args.env_id == "CarRacing-v3":
+        logger.info(
+            "Using optimised CarRacing renderer for training and in-run evaluation"
+        )
+
     try:
         envs = gym.make_vec(
-            id=args.env_id,
+            id=training_env_id,
             num_envs=args.num_envs,
             vectorization_mode="async",
             vector_kwargs={"context": "spawn"},
