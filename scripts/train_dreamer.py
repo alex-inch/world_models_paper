@@ -48,7 +48,7 @@ class TrainArgs:
     seq_length: int = 25
     wm_lr: float = 1e-4
     actor_lr: float = 4e-5
-    policy_lr: float = 1e-4
+    critic_lr: float = 1e-4
     adamw_eps: float = 1e-5
     collect_interval: int = 100
     imagination_horizon: int = 15
@@ -245,7 +245,7 @@ def train(args: TrainArgs, envs: gym.vector.VectorEnv, run: wandb.Run):
     actor_optim  = nnx.Optimizer(actor,  tx=actor_tx, wrt=nnx.Param)
     critic_tx = optax.chain(
         optax.transforms.adaptive_grad_clip(0.3),
-        optax.adamw(args.actor_lr, eps=args.adamw_eps),
+        optax.adamw(args.critic_lr, eps=args.adamw_eps),
     )
     critic_optim = nnx.Optimizer(critic, tx=critic_tx, wrt=nnx.Param)
     # fmt: on
@@ -392,9 +392,8 @@ def main(args: TrainArgs):
     args_pprint = pformat(asdict(args), sort_dicts=False)
     logger.info(f"Beginning training run with args:\n{args_pprint}")
 
-    # Keep the canonical task ID in checkpoint metadata: offline evaluation and
-    # rendering use args.env_id to construct the original environment. Only this
-    # script's collection and in-run evaluation use the faster renderer.
+    # If training on CarRacing - use the alternative renderer which doesn't use
+    # fonts (for a massive speedup on ARC cluster)
     training_env_id = (
         CONTROLLER_TRAINING_ENV_SPEC if args.env_id == "CarRacing-v3" else args.env_id
     )
