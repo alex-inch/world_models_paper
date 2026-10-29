@@ -176,24 +176,22 @@ def encode_video(panels, output, information):
         font_manager.FontProperties(family="Routed Gothic"), fallback_to_default=False
     )
     fonts = {size: ImageFont.truetype(font, size) for size in (12, 14)}
-    full_context = information.get("full_context", information["context"])
-    base = Image.new("RGB", (864, 320), PAPER)
+    base = Image.new("RGB", (864, 264), PAPER)
     draw = ImageDraw.Draw(base)
     # draw.text(
     #     (24, 54), f"{information['run_name']}  /  {information['train_step']:,} UPDATES",
     #     font=fonts[14], fill=INK,
     # )
     labels = [
-        ("policy", "POLICY", "REAL ENVIRONMENT"),
-        ("reconstruction", "RECONSTRUCTION", "OBSERVE EVERY FRAME"),
-        ("periodic_imagination", "IMAGINATION", "5 OBS + 15 IMAGINED"),
-        ("full_imagination", "FULL IMAGINATION", f"{full_context} FRAME CONTEXT"),
+        ("policy", "POLICY"),
+        ("reconstruction", "RECONSTRUCTION"),
+        ("periodic_imagination", "PARTIAL IMAGINATION"),
+        ("full_imagination", "FULL IMAGINATION"),
     ]
-    for index, (_, title, subtitle) in enumerate(labels):
+    for index, (_, title) in enumerate(labels):
         left = 24 + index * 208
         draw.text((left, 24), title, font=fonts[14], fill=INK)
-        draw.text((left, 46), subtitle, font=fonts[12], fill=INK)
-        draw.rectangle((left - 1, 67, left + 192, 260), outline=INK)
+        draw.rectangle((left - 1, 47, left + 192, 240), outline=INK)
     # draw.text(
     #     (24, 414), "IMAGINATION PANES USE THEIR OWN ACTOR ACTIONS; FULL IMAGINATION NEVER RECORRECTS.",
     #     font=fonts[12], fill=INK,
@@ -210,7 +208,7 @@ def encode_video(panels, output, information):
             "-pix_fmt",
             "rgb24",
             "-s",
-            "864x320",
+            "864x264",
             "-r",
             str(fps),
             "-i",
@@ -234,18 +232,11 @@ def encode_video(panels, output, information):
     try:
         for index in range(count):
             frame = base.copy()
-            for panel, (name, _, _) in enumerate(labels):
+            for panel, (name, _) in enumerate(labels):
                 pixels = Image.fromarray(panels[name][index]).resize(
                     (192, 192), Image.Resampling.NEAREST
                 )
-                frame.paste(pixels, (24 + panel * 208, 68))
-            draw = ImageDraw.Draw(frame)
-            draw.text(
-                (24, 286),
-                f"TIME {index / fps:05.2f} S",
-                font=fonts[14],
-                fill=INK,
-            )
+                frame.paste(pixels, (24 + panel * 208, 48))
             writer.stdin.write(frame.tobytes())
             gif_frames.append(
                 frame.quantize(
@@ -316,6 +307,9 @@ def main(
         "full_imagination": f"actor chooses actions inside the model; no observations after initial {full_context} frames",
         "header": False,
         "status_line": False,
+        "timer": False,
+        "subheads": False,
+        "resolution": [864, 264],
     }
     np.savez_compressed(
         output.with_suffix(".npz"),

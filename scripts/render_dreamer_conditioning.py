@@ -42,20 +42,18 @@ def encode(panels, output, fps):
     font = font_manager.findfont(
         font_manager.FontProperties(family="Routed Gothic"), fallback_to_default=False,
     )
-    heading = ImageFont.truetype(font, 24)
     label = ImageFont.truetype(font, 14)
     subtitle = ImageFont.truetype(font, 12)
-    base = Image.new("RGB", (864, 360), PAPER)
+    base = Image.new("RGB", (864, 320), PAPER)
     draw = ImageDraw.Draw(base)
-    draw.text((24, 18), "DREAMER - OPEN-LOOP CONDITIONING", font=heading, fill=INK)
     for index, context in enumerate(CONTEXTS):
         left = 24 + index * 208
-        draw.text((left, 64), f"{context} FRAME{'S' if context != 1 else ''}", font=label, fill=INK)
-        draw.text((left, 86), "CONDITIONING", font=subtitle, fill=INK)
-        draw.rectangle((left - 1, 103, left + 192, 296), outline=INK)
+        draw.text((left, 24), f"{context} FRAME{'S' if context != 1 else ''}", font=label, fill=INK)
+        draw.text((left, 46), "CONDITIONING", font=subtitle, fill=INK)
+        draw.rectangle((left - 1, 67, left + 192, 260), outline=INK)
     writer = subprocess.Popen([
         imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error",
-        "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "864x360",
+        "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "864x320",
         "-r", str(fps), "-i", "-", "-an", "-c:v", "libx264", "-crf", "16",
         "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(output.with_suffix(".mp4")),
     ], stdin=subprocess.PIPE, close_fds=False)
@@ -66,9 +64,9 @@ def encode(panels, output, fps):
             frame = base.copy()
             for index in range(len(CONTEXTS)):
                 pixels = Image.fromarray(panels[index, step]).resize((192, 192), Image.Resampling.NEAREST)
-                frame.paste(pixels, (24 + index * 208, 104))
+                frame.paste(pixels, (24 + index * 208, 68))
             ImageDraw.Draw(frame).text(
-                (24, 322), f"OPEN-LOOP TIME {(step + 1) / fps:05.2f} S", font=label, fill=INK,
+                (24, 286), f"OPEN-LOOP TIME {(step + 1) / fps:05.2f} S", font=label, fill=INK,
             )
             writer.stdin.write(frame.tobytes())
             gif_frames.append(frame.quantize(colors=256, method=Image.Quantize.FASTOCTREE,
@@ -117,6 +115,7 @@ def main(checkpoint: Path, recording: Path, output: Path, seed: int = 500_000,
         "context_windows": [[max(CONTEXTS) - context, max(CONTEXTS) - 1] for context in CONTEXTS],
         "forecast_origin_environment_step": max(CONTEXTS) - 1,
         "frames": horizon, "duration_seconds": horizon / source["fps"],
+        "header": False,
         "conditioning": "Trailing windows ending at the same frame; recurrent state reset at each window start",
         "imagination": "Own actor actions; no further observations; shared random draws across histories",
     }
