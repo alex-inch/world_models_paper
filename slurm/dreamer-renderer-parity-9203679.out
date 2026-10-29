@@ -1,0 +1,43 @@
+policy: 200 steps match across 8 lanes
+policy: 400 steps match across 8 lanes
+policy: 600 steps match across 8 lanes
+policy: 800 steps match across 8 lanes
+policy: 1000 steps match across 8 lanes
+driving_and_autoresets: 200 steps match across 8 lanes
+driving_and_autoresets: 400 steps match across 8 lanes
+driving_and_autoresets: 600 steps match across 8 lanes
+driving_and_autoresets: 800 steps match across 8 lanes
+driving_and_autoresets: 1000 steps match across 8 lanes
+{
+  "seed": 20,
+  "environment_seed": 867193015,
+  "backend": "[CudaDevice(id=0)]",
+  "checkpoint": "experiments/dreamer/checkpoints/fh6igknc/00022000",
+  "packages": {
+    "jax": "0.11.1",
+    "jaxlib": "0.11.1",
+    "flax": "0.12.10",
+    "gymnasium": "1.4.0",
+    "pygame-ce": "2.5.8",
+    "Box2D": "2.3.10"
+  },
+  "cases": [
+    {
+      "case": "policy",
+      "vector_steps": 1000,
+      "lanes": 8,
+      "matched_images": 8008,
+      "episode_end_events": 8
+    },
+    {
+      "case": "driving_and_autoresets",
+      "vector_steps": 1000,
+      "lanes": 8,
+      "matched_images": 8008,
+      "episode_end_events": 14
+    }
+  ],
+  "status": "passed",
+  "elapsed_s": 860.8531883992255
+}
+Saved experiments/dreamer/diagnostics/renderer-parity-9203679/results.json

@@ -1,0 +1,30 @@
+stock: loading real initial checkpoint experiments/dreamer/checkpoints/gp8l0xmb/00000000
+optimized: loading real initial checkpoint experiments/dreamer/checkpoints/fh6igknc/00000000
+Initial checkpoint comparison: bitwise equal
+stock: reconstructing 8 × 1000 transitions
+2026-10-29 00:03:26.873 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+stock: collected 200 vector steps
+stock: collected 400 vector steps
+stock: collected 600 vector steps
+stock: collected 800 vector steps
+stock: collected 1000 vector steps
+optimized: reconstructing 8 × 1000 transitions
+2026-10-29 00:11:26.130 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+optimized: collected 200 vector steps
+optimized: collected 400 vector steps
+optimized: collected 600 vector steps
+optimized: collected 800 vector steps
+optimized: collected 1000 vector steps
+stock: tracing one learner update (first call compiles)
+W1029 00:11:52.266356 2176182 cuda_timer.cc:88] Delay kernel timed out: measured time has sub-optimal accuracy. There may be a missing warmup execution, please investigate in Nsight Systems.
+W1029 00:11:55.733301 2176192 cuda_timer.cc:88] Delay kernel timed out: measured time has sub-optimal accuracy. There may be a missing warmup execution, please investigate in Nsight Systems.
+W1029 00:12:06.435186 2176194 cuda_timer.cc:88] Delay kernel timed out: measured time has sub-optimal accuracy. There may be a missing warmup execution, please investigate in Nsight Systems.
+stock {'critic_loss': 0.008851193822920322, 'target_mean': -0.0451822504401207, 'conflicting_replay_slots': 167, 'extra_replay_writes': 167, 'frozen_input_source': 'stock'}
+optimized: tracing one learner update (first call compiles)
+optimized {'critic_loss': 0.008851193822920322, 'target_mean': -0.0451822504401207, 'conflicting_replay_slots': 167, 'extra_replay_writes': 167, 'frozen_input_source': 'optimized'}
+stock_repeat: tracing one learner update (first call compiles)
+stock_repeat {'critic_loss': 0.008851193822920322, 'target_mean': -0.0451822504401207, 'conflicting_replay_slots': 167, 'extra_replay_writes': 167, 'frozen_input_source': 'stock'}
+actual_initial_checkpoints: first difference = none
+stock_vs_optimized_reconstruction: first difference = wm_gradients
+stock_frozen_input_repeat: first difference = wm_gradients
+Read /data/engs-a2i/pemb7576/world_models_paper/experiments/dreamer/diagnostics/first-step-9203678/report.md and return report.json with the Slurm log
