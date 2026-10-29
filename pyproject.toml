@@ -20,6 +20,7 @@ dependencies = [
     "loguru>=0.7.3",
     "matplotlib>=3.10.9",
     "mediapy>=1.2.6",
+    "ml-dtypes>=0.5.4",
     "opencv-python==4.12.0.88",
     "optax>=0.2.8",
     "orbax>=0.1.9",
