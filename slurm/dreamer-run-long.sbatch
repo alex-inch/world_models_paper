@@ -18,8 +18,9 @@ srun .venv/bin/python -u scripts/train_dreamer.py \
   --collect-interval 2000 \
   --steps-per-eval 10 \
   --steps-per-checkpoint 5 \
-  --num-eval-episodes 16 \
+  --num-eval-episodes 64 \
   --cfg.actor-entropy-weight 0.0005 \
   --seq-length 64 \
   --batch-size 32 \
-  --outer-train-steps 200
+  --outer-train-steps 200 \
+  --cfg.dtype bfloat16
