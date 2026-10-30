@@ -73,16 +73,19 @@ def test_shape_handling():
 
 
 @pytest.mark.parametrize("is_first", [False, True])
-def test_supplied_memory_is_used_unless_episode_restarts(is_first):
-    cfg = DreamerConfig(wm_hidden_dim=4, num_latent_dists=2, num_latent_classes=3)
+@pytest.mark.parametrize("dtype", ["float32", "bfloat16", "float16"])
+def test_supplied_memory_is_used_unless_episode_restarts(is_first, dtype):
+    cfg = DreamerConfig(
+        wm_hidden_dim=4, num_latent_dists=2, num_latent_classes=3, dtype=dtype
+    )
     rssm = RSSM(cfg, nnx.Rngs(42))
     fresh = nnx.clone(rssm, arrays=True)
-    embedding = jnp.zeros((1, 1, cfg.embedding_dim))
-    action = jnp.full((1, 1, cfg.action_dim), 0.25)
+    embedding = jnp.zeros((1, 1, cfg.embedding_dim), dtype=dtype)
+    action = jnp.full((1, 1, cfg.action_dim), 0.25, dtype=dtype)
     reset = jnp.array([[is_first]])
     initial_state = (
-        jnp.full((1, cfg.wm_hidden_dim), 0.75),
-        jnp.tile(jnp.array([1.0, 0.0, 0.0]), (1, cfg.num_latent_dists)),
+        jnp.full((1, cfg.wm_hidden_dim), 0.75, dtype=dtype),
+        jnp.tile(jnp.array([1.0, 0.0, 0.0], dtype=dtype), (1, cfg.num_latent_dists)),
     )
 
     observed = rssm(embedding, action, reset, initial_state)

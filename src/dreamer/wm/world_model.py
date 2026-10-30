@@ -1,5 +1,6 @@
 import chex
 import jax
+import jax.numpy as jnp
 import optax
 from einops import rearrange
 from flax import nnx
@@ -22,8 +23,10 @@ class DreamerWM(nnx.Module):
         self.rssm = RSSM(cfg=cfg, rngs=rngs)
 
         state_dims = cfg.wm_hidden_dim + cfg.latent_dim
-        self.continue_pred = nnx.Linear(state_dims, 1, rngs=rngs)
-        self.reward_pred = nnx.Linear(state_dims, cfg.reward_encoding_bins, rngs=rngs)
+        self.continue_pred = nnx.Linear(state_dims, 1, rngs=rngs, dtype=cfg.dtype)
+        self.reward_pred = nnx.Linear(
+            state_dims, cfg.reward_encoding_bins, rngs=rngs, dtype=cfg.dtype
+        )
 
         self.reward_bins = get_bins(
             cfg.reward_encoding_bins, cfg.reward_encoding_max_exp
@@ -38,7 +41,9 @@ class DreamerWM(nnx.Module):
         # Remove singleton final dimension. Note we're returning `cont` as logits instead of
         # passing it through a sigmoid for more numerically stable loss computation.
         cont = rearrange(cont, "... 1 -> ...")
-        return reward, cont
+        # Cast to float32 - these will get exponentiated during the encoding, so best
+        # to be high precision.
+        return reward.astype(jnp.float32), cont.astype(jnp.float32)
 
     def decode_reward_logits(
         self, logits: Float[Array, "... R"]

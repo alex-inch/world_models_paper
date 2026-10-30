@@ -23,8 +23,8 @@ class BufferState:
     acts: Float[Array, "Capacity Time Action"]
     conts: Float[Array, "Capacity Time"]
     rewards: Float[Array, "Capacity Time"]
-    model_state_latent: Float[Array, "Capacity Time LatentDim"]
     model_state_hidden: Float[Array, "Capacity Time HiddenDim"]
+    model_state_latent: Float[Array, "Capacity Time LatentDim"]
 
     @property
     def capacity(self) -> int:
@@ -69,12 +69,12 @@ def init_buffer(
     return BufferState(
         cursor=jnp.asarray(0, dtype=jnp.int32),
         full=jnp.asarray(False),
-        obs=jnp.zeros((N, T, H, W, C), dtype=jnp.float32),
-        acts=jnp.zeros((N, T, action_dim), dtype=jnp.float32),
-        conts=jnp.zeros((N, T), dtype=jnp.float32),
+        obs=jnp.zeros((N, T, H, W, C), dtype=cfg.dtype),
+        acts=jnp.zeros((N, T, action_dim), dtype=cfg.dtype),
+        conts=jnp.zeros((N, T), dtype=cfg.dtype),
         rewards=jnp.zeros((N, T), dtype=jnp.float32),
-        model_state_hidden=jnp.zeros((N, T, cfg.wm_hidden_dim), dtype=jnp.float32),
-        model_state_latent=jnp.zeros((N, T, cfg.latent_dim), dtype=jnp.float32),
+        model_state_hidden=jnp.zeros((N, T, cfg.wm_hidden_dim), dtype=cfg.dtype),
+        model_state_latent=jnp.zeros((N, T, cfg.latent_dim), dtype=cfg.dtype),
     )
 
 
@@ -252,23 +252,24 @@ def collect_new_rollouts(
     max_timesteps = buffer.episode_length - 1
     action_dim = world_model.cfg.action_dim
     logger.info(f"Collecting {num_eps} rollouts of {max_timesteps} transitions")
+    dtype = world_model.cfg.dtype
 
     for _ in range(0, num_eps, num_envs):
         rollout_obs = np.zeros(
-            (num_envs, buffer.episode_length, *buffer.obs.shape[2:]), dtype=np.float32
+            (num_envs, buffer.episode_length, *buffer.obs.shape[2:]), dtype=dtype
         )
         rollout_acts = np.zeros(
-            (num_envs, buffer.episode_length, action_dim), dtype=np.float32
+            (num_envs, buffer.episode_length, action_dim), dtype=dtype
         )
-        rollout_conts = np.zeros((num_envs, buffer.episode_length), dtype=np.float32)
-        rollout_rewards = np.zeros_like(rollout_conts)
+        rollout_conts = np.zeros((num_envs, buffer.episode_length), dtype=dtype)
+        rollout_rewards = np.zeros_like(rollout_conts, dtype=np.float32)
         rollout_hidden = np.zeros(
             (num_envs, buffer.episode_length, world_model.cfg.wm_hidden_dim),
-            dtype=np.float32,
+            dtype=dtype,
         )
         rollout_latent = np.zeros(
             (num_envs, buffer.episode_length, world_model.cfg.latent_dim),
-            dtype=np.float32,
+            dtype=dtype,
         )
 
         reset_key, key = jax.random.split(key)
@@ -283,7 +284,7 @@ def collect_new_rollouts(
         rollout_conts[:, 0] = 1
         rollout_hidden[:, 0] = carry[0]
         rollout_latent[:, 0] = carry[1]
-        prev_action = jnp.zeros((num_envs, action_dim), dtype=jnp.float32)
+        prev_action = jnp.zeros((num_envs, action_dim), dtype=dtype)
         is_first = jnp.ones(num_envs, dtype=jnp.bool_)
 
         for t in range(1, max_timesteps + 1):
@@ -313,7 +314,7 @@ def collect_new_rollouts(
 
             # Add the episode end to train the continue predictor
             rollout_conts[:, t] = ~(terminated | truncated)
-            prev_action = jnp.asarray(acts)
+            prev_action = jnp.asarray(acts, dtype=dtype)
             is_first = jnp.zeros(num_envs, dtype=jnp.bool_)
 
         buffer = add_episodes(

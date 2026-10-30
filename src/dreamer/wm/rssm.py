@@ -2,6 +2,7 @@ from typing import Any
 
 import chex
 import jax
+from jax.lax import stop_gradient as sg
 import jax.numpy as jnp
 from einops import einsum, pack, rearrange
 from flax import nnx
@@ -33,38 +34,53 @@ class RSSM(nnx.Module):
 
         repr_in_features = cfg.embedding_dim + cfg.wm_hidden_dim
 
-        self.gru = nnx.GRUCell(cfg.rnn_in_features, cfg.wm_hidden_dim, rngs=self.rngs)
-        self.trans_model = nnx.Linear(cfg.wm_hidden_dim, cfg.latent_dim, rngs=self.rngs)
-        self.repr_model = nnx.Linear(repr_in_features, cfg.latent_dim, rngs=self.rngs)
+        self.gru = nnx.GRUCell(
+            cfg.rnn_in_features, cfg.wm_hidden_dim, rngs=self.rngs, dtype=cfg.dtype
+        )
+        self.trans_model = nnx.Linear(
+            cfg.wm_hidden_dim, cfg.latent_dim, rngs=self.rngs, dtype=cfg.dtype
+        )
+        self.repr_model = nnx.Linear(
+            repr_in_features, cfg.latent_dim, rngs=self.rngs, dtype=cfg.dtype
+        )
 
-    def sample(self, logits: Shaped[Array, "B Z"]):
+    def sample(self, logits: Shaped[Array, "B N*K"]) -> Shaped[Array, "B N*K"]:
         "Given the flattened logits of a latent posterior, return"
         # need to reshape each logit to 32x32 per example. Then we can sample
         # from the defined categorical distribtuions, and unflatten back to the full
         # latent dimension
-        logits = rearrange(logits, "B (N K) -> B N K", N=self.cfg.num_latent_dists)
-        probs = nnx.softmax(logits, axis=-1)
-        B, N, _K = logits.shape
 
-        draw = self.rngs.categorical(logits, axis=-1, shape=(B, N))
-        draw = nnx.one_hot(draw, self.cfg.num_latent_classes)
+        # For numerical stability, keeping this in f32
+        logits = rearrange(logits, "B (N K) -> B N K", N=self.cfg.num_latent_dists)
+        probs = nnx.softmax(logits.astype(jnp.float32), axis=-1)
+        B, N, K = logits.shape
+
+        draw = self.rngs.categorical(logits.astype(jnp.float32), axis=-1, shape=(B, N))
+        draw = nnx.one_hot(draw, K, dtype=self.cfg.dtype)
         # straight-through estimator to get gradients through the sampling step
-        draw = draw + probs - jax.lax.stop_gradient(probs)
+        # wrap the (probs - sg(probs)) in brackets to encourage a more numerically stably computation:
+        # instead of (draw + probs) - probs, the bracketed expression will evaluate to zero correctly
+        draw = draw + (probs - sg(probs))
         draw = rearrange(draw, "B N K -> B (N K)")
-        return draw
+        return draw.astype(self.cfg.dtype)
 
     def initialize_state(self, batch_dim: int) -> Carry:
         rnn_input_shape = (batch_dim, self.cfg.rnn_in_features)
         hidden = self.gru.initialize_carry(rnn_input_shape, self.rngs)
+        hidden = hidden.astype(self.cfg.dtype)  # nnx always inits to f32
 
         latent_shape = (batch_dim, self.cfg.latent_dim)
-        latent = jnp.zeros(latent_shape, dtype=jnp.float32)
+        latent = jnp.zeros(latent_shape, dtype=self.cfg.dtype)
 
         return (hidden, latent)
 
     # This scan order expects batch-major inputs
     @nnx.scan(in_axes=(None, nnx.Carry, 1), out_axes=(nnx.Carry, 1))
-    def unroll(self, state, inputs):
+    def unroll(
+        self,
+        state: tuple[Shaped[Array, "B H"], Shaped[Array, "B Z"]],
+        inputs: tuple[Shaped[Array, "B ..."], ...],
+    ):
         embedding, prev_action, is_first = inputs
         # The sequences are packed in end-to-end, so sometimes they will contain the first
         # states of a sequence. In that case, we want to reset the model state, containing
@@ -138,7 +154,7 @@ class RSSM(nnx.Module):
         prior = rearrange(prior, "... (N K) -> ... N K", N=N, K=K)
         return RSSMOut(hidden=hidden, latent_sample=latent, prior=prior)
 
-    def imagine_step(self, rssm_state: RSSMOut, action):
+    def imagine_step(self, rssm_state: RSSMOut, action: Array):
         h, z = rssm_state.hidden, rssm_state.latent_sample
 
         # Update hidden state
@@ -165,7 +181,7 @@ class Encoder(nnx.Module):
         # solving car racing I've simplified it to just the image path.
         # fmt: off
         # ruff: ignore[unnecessary-collection-call]
-        conv_params: dict[str, Any] = dict(kernel_size=(4, 4), strides=2, padding="VALID", rngs=rngs)  
+        conv_params: dict[str, Any] = dict(kernel_size=(4, 4), strides=2, padding="VALID", rngs=rngs, dtype=cfg.dtype)
         self.layers= nnx.Sequential(
             nnx.Conv(in_features=cfg.img_channels, out_features=48,  **conv_params),  # 31 x 31
             cfg.activation_fn,
@@ -192,9 +208,11 @@ class Decoder(nnx.Module):
     ):
         in_feat = cfg.wm_hidden_dim + cfg.latent_dim
         # ruff: ignore[unnecessary-collection-call]
-        conv_params: dict[str, Any] = dict(strides=2, padding="VALID", rngs=rngs)
+        conv_params: dict[str, Any] = dict(
+            strides=2, padding="VALID", rngs=rngs, dtype=cfg.dtype
+        )
         self.layers = nnx.Sequential(
-            nnx.Linear(in_feat, 384, rngs=rngs),  # 1x1
+            nnx.Linear(in_feat, 384, rngs=rngs, dtype=cfg.dtype),  # 1x1
             cfg.activation_fn,
             nnx.ConvTranspose(384, 192, kernel_size=(5, 5), **conv_params),  # 5x5
             cfg.activation_fn,
@@ -212,5 +230,4 @@ class Decoder(nnx.Module):
     ) -> Shaped[Array, "... H W C"]:
         joint_latent = rearrange(joint_latent, "... (1 1 C) -> ... 1 1 C")
         img_means = self.layers(joint_latent)
-        # TOOD: output? sample?  What do?
         return img_means

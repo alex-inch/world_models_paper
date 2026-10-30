@@ -97,9 +97,14 @@ def test_gradient_reaches_policy_through_imagination(signal, expected_gradient):
     np.testing.assert_allclose(gradient.action[...], expected_gradient)
 
 
-def test_training_losses_update_only_their_own_module():
+@pytest.mark.parametrize("dtype", ["float32", "bfloat16", "float16"])
+def test_training_losses_update_only_their_own_module(dtype):
     cfg = DreamerConfig(
-        wm_hidden_dim=1, num_latent_dists=1, num_latent_classes=2, agent_hidden_dim=8
+        wm_hidden_dim=1,
+        num_latent_dists=1,
+        num_latent_classes=2,
+        agent_hidden_dim=8,
+        dtype=dtype,
     )
     actor = Actor(cfg, nnx.Rngs(0))
     critic = Critic(cfg, nnx.Rngs(1))
@@ -120,10 +125,12 @@ def test_training_losses_update_only_their_own_module():
         actor, critic, wm, initial_state(), horizon=2, key=jax.random.key(0)
     )
     assert np.isfinite(loss)
+    assert loss.dtype == targets.dtype == weights.dtype == jnp.float32
     assert set(grads) == {"actor_net"}
     assert features.shape == (2, 2, 3)
     assert targets.shape == (2, 2)
     assert all(np.isfinite(x).all() for x in jax.tree.leaves(grads))
+    assert all(x.dtype == jnp.float32 for x in jax.tree.leaves(grads))
     actor_optim.update(actor, grads)
     assert any(
         not np.array_equal(a, b) for a, b in zip(actor_before, parameters(actor))
@@ -134,7 +141,9 @@ def test_training_losses_update_only_their_own_module():
     actor_after = parameters(actor)
     loss, grads = critic_value_and_grad(critic, features, targets, weights)
     assert np.isfinite(loss)
+    assert loss.dtype == jnp.float32
     assert set(grads) == {"critic_net"}
+    assert all(x.dtype == jnp.float32 for x in jax.tree.leaves(grads))
     critic_optim.update(critic, grads)
     assert any(
         not np.array_equal(a, b) for a, b in zip(critic_before, parameters(critic))

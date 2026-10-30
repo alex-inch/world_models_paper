@@ -146,6 +146,37 @@ def test_collection_retains_history_and_aligned_complete_episodes():
         envs.close()
 
 
+@pytest.mark.parametrize("dtype", ["bfloat16", "float16"])
+def test_collection_preserves_reward_precision_and_float32_environment_actions(dtype):
+    class PreciseRewardEnv(ImageEnv):
+        def step(self, action):
+            assert action.dtype == np.float32
+            obs, _, terminated, truncated, info = super().step(action)
+            return obs, 1.23456789, terminated, truncated, info
+
+    world_model = CountingWorldModel()
+    world_model.cfg = DreamerConfig(
+        wm_hidden_dim=1, num_latent_dists=1, num_latent_classes=1, dtype=dtype
+    )
+    envs = SyncVectorEnv([lambda: PreciseRewardEnv(horizon=2)])
+    try:
+        buffer = collect_new_rollouts(
+            init_buffer(capacity=1, seq_length=3, cfg=world_model.cfg),
+            envs,
+            world_model,
+            CountingPolicy(),
+            num_eps=1,
+            key=jax.random.key(0),
+        )
+        assert buffer.obs.dtype == jnp.dtype(dtype)
+        assert buffer.rewards.dtype == jnp.float32
+        np.testing.assert_array_equal(
+            buffer.rewards[0], np.array([0, 1.23456789, 1.23456789], np.float32)
+        )
+    finally:
+        envs.close()
+
+
 @pytest.fixture
 def replay_buffer():
     cfg = DreamerConfig(wm_hidden_dim=3, num_latent_dists=2, num_latent_classes=3)

@@ -26,6 +26,7 @@ class DreamerConfig:
     reward_encoding_bins: int = 127
     reward_encoding_max_exp: int = 9
     actor_entropy_weight: float = 1e-4
+    dtype: Literal["bfloat16", "float32", "float16"] = "float32"
 
     @property
     def activation_fn(self) -> Callable:
@@ -45,6 +46,15 @@ class DreamerConfig:
 
 
 # fmt: off
+# Dim definitions
+#   B - batch
+#   T - timestep
+#   H - image height
+#   W - image width
+#   C - image channels
+#   N - number of latent categorical distributions
+#   K - number of classes per latent categorical distribution
+#   R - hidden dimension of recurrent network
 @chex.dataclass
 class DreamerBatch:
     image:         Shaped[Array, "B T H W C"]
@@ -56,15 +66,6 @@ class DreamerBatch:
 
 @chex.dataclass
 class DreamerWMOut: 
-    # Dim definitions
-    #   B - batch
-    #   T - timestep
-    #   H - image height
-    #   W - image width
-    #   C - image channels
-    #   N - number of latent categorical distributions
-    #   K - number of classes per latent categorical distribution
-    #   R - hidden dimension of recurrent network
     image:            Shaped[Array, "B T H W C"]  # p(x_t | h_t, z_t)
     reward:           Shaped[Array, "B T"]        # p(r_t | h_t, z_t)
     cont:             Shaped[Array, "B T"]        # p(ɣ_t | h_t, z_t)
