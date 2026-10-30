@@ -169,6 +169,62 @@ def test_reference_metrics_are_repeatable_and_leave_model_state_unchanged():
         assert name in first
 
 
+@pytest.mark.parametrize("last_continue", [0, 1])
+def test_eval_returns_stop_at_first_episode_end(monkeypatch, last_continue):
+    class RewardWorldModel(CountingWorldModel):
+        def __call__(self, batch, initial_state):
+            state = self.run_rssm(batch, initial_state)
+            return SimpleNamespace(
+                hidden=state.hidden,
+                latent_sample=state.latent_sample,
+                latent_prior=state.prior,
+                image=jnp.zeros_like(batch.image),
+            )
+
+        def decoder(self, features):
+            return jnp.zeros((*features.shape[:-1], 1, 1, 3))
+
+    monkeypatch.setattr("dreamer.diagnostics.policy_metrics", lambda *args: {})
+    monkeypatch.setattr("dreamer.diagnostics.reference_metrics", lambda *args: {})
+    monkeypatch.setattr(
+        "dreamer.diagnostics.format_eval_video", lambda *args: np.zeros((1, 3, 1, 1))
+    )
+    monkeypatch.setattr(
+        "dreamer.diagnostics.wandb.Video",
+        lambda frames, **kwargs: SimpleNamespace(frames=frames, **kwargs),
+    )
+    monkeypatch.setattr(
+        "dreamer.diagnostics.wandb.Histogram",
+        lambda values, **kwargs: np.asarray(values).copy(),
+    )
+    buffer = SimpleNamespace(
+        obs=jnp.zeros((3, 8, 1, 1, 3)),
+        acts=jnp.zeros((3, 8, 3)),
+        # Sentinel initial rewards and large rewards from later episodes must
+        # be ignored, while the first episode's terminal reward is included.
+        rewards=jnp.array([
+            [1234, 2, 5, 100, 100, 100, 100, 100],
+            [999, 1, 2, 3, 4, 200, 200, 200],
+            [777, 1, 2, 3, 4, 5, 6, 7],
+        ]),
+        conts=jnp.array([
+            [1, 1, 0, 1, 1, 0, 1, 1],
+            [1, 1, 1, 1, 0, 1, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, last_continue],
+        ]),
+    )
+    wm = RewardWorldModel()
+    metrics, _ = evaluate_rollouts(
+        buffer, wm, ConstantPolicy(), LinearCritic(1), LinearCritic(2), wm.rngs()
+    )
+    expected = np.array([7, 10, 28])
+    np.testing.assert_array_equal(metrics["eval/returns"], expected)
+    assert metrics["eval/return_mean"] == 15
+    assert metrics["eval/return_median"] == 10
+    np.testing.assert_allclose(metrics["eval/return_std"], expected.std())
+    assert "Mean Return: 15." in metrics["eval/policy"].caption
+
+
 @pytest.mark.parametrize("fps", [10, 50])
 def test_eval_video_repeats_context_and_imagination_in_sync(monkeypatch, fps):
     class VideoWorldModel(CountingWorldModel):

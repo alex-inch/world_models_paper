@@ -1,6 +1,5 @@
-"""Evaluation diagnostics for policy behaviour, reward prediction and imagination."""
+"""Vibed implementation of diagnostics for wandb."""
 
-from dreamer.buffer import BufferState
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -15,6 +14,7 @@ from PIL import Image, ImageDraw
 
 import wandb
 from dreamer.actor_critic import Actor, compute_td_lambda_returns
+from dreamer.buffer import BufferState
 from dreamer.imagine import run_imagination_rollout
 from dreamer.wm import DreamerBatch
 from dreamer.wm.rssm import RSSMOut
@@ -362,8 +362,10 @@ def evaluate_rollouts(
         rollout, reconstruction, imagined_frames, imagination_starts, fps
     )
 
-    rewards = buffer.rewards  # [T H]
-    returns = rewards.sum(axis=1)
+    rewards = buffer.rewards[:, 1:]
+    # Include the terminal reward, then exclude rewards after an autoreset.
+    valid = jnp.cumprod(buffer.conts[:, :-1], axis=1)
+    returns = (rewards * valid).sum(axis=1)
 
     metrics = {
         "eval/return_mean": float(returns.mean()),

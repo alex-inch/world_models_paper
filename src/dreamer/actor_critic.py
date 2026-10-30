@@ -26,11 +26,16 @@ class Actor(nnx.Module):
         input_dim = cfg.latent_dim + cfg.wm_hidden_dim
 
         self.actor_net = nnx.Sequential(
-            nnx.Linear(input_dim, cfg.agent_hidden_dim, rngs=rngs),
+            nnx.Linear(input_dim, cfg.agent_hidden_dim, dtype=cfg.dtype, rngs=rngs),
             cfg.activation_fn,
-            nnx.Linear(cfg.agent_hidden_dim, cfg.agent_hidden_dim, rngs=rngs),
+            nnx.Linear(
+                cfg.agent_hidden_dim, cfg.agent_hidden_dim, dtype=cfg.dtype, rngs=rngs
+            ),
             cfg.activation_fn,
-            nnx.Linear(cfg.agent_hidden_dim, 2 * cfg.action_dim, rngs=rngs),
+            # Preserve precision of the action distribution parameters.
+            nnx.Linear(
+                cfg.agent_hidden_dim, 2 * cfg.action_dim, dtype=jnp.float32, rngs=rngs
+            ),
         )
 
     def __call__(self, x: Float[Array, "... Z+H"]) -> TruncatedNormal:
@@ -94,11 +99,14 @@ class Critic(nnx.Module):
         input_dim = cfg.latent_dim + cfg.wm_hidden_dim
 
         self.critic_net = nnx.Sequential(
-            nnx.Linear(input_dim, cfg.agent_hidden_dim, rngs=rngs),
+            nnx.Linear(input_dim, cfg.agent_hidden_dim, dtype=cfg.dtype, rngs=rngs),
             cfg.activation_fn,
-            nnx.Linear(cfg.agent_hidden_dim, cfg.agent_hidden_dim, rngs=rngs),
+            nnx.Linear(
+                cfg.agent_hidden_dim, cfg.agent_hidden_dim, dtype=cfg.dtype, rngs=rngs
+            ),
             cfg.activation_fn,
-            nnx.Linear(cfg.agent_hidden_dim, 1, rngs=rngs),
+            # Scalar value regression needs more precision than the hidden layers.
+            nnx.Linear(cfg.agent_hidden_dim, 1, dtype=jnp.float32, rngs=rngs),
         )
 
     def __call__(self, features: Float[Array, "... Z+H"]) -> Float[Array, "..."]:

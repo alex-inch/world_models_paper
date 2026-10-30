@@ -4,7 +4,7 @@ from einops import einsum
 from jaxtyping import Array, ArrayLike, Shaped
 
 
-def get_bins(n_bins=127, max_exp=9):
+def get_bins(n_bins: int = 127, max_exp: int = 9):
     "Construct the vector of bins B used in twohot encoding."
     assert n_bins % 2 == 1  # should be odd for how this is being constructed.
     half = n_bins // 2

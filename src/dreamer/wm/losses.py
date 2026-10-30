@@ -2,6 +2,7 @@ import chex
 import distrax
 import einops
 import jax
+import jax.numpy as jnp
 import optax
 from jaxtyping import Array, Shaped
 
@@ -17,6 +18,9 @@ def nll(
     true: Shaped[Array, "B T"] | Shaped[Array, "B T H W C"],
 ) -> Shaped[Array, ""]:
     "Computes the negative log likelihood for a unit Gaussian (i.e. the MSE)"
+    # for numerical stability - ensure f32
+    pred = pred.astype(jnp.float32)
+    true = true.astype(jnp.float32)
     chex.assert_rank([true, pred], {2, 5})  # expecting either scalar or image inputs
 
     # For Gaussians with unit covariance, the logprob is just the mean squared error,
@@ -30,8 +34,8 @@ def nll(
 def _compute_kl(
     posterior: Shaped[Array, "B T N K"], prior: Shaped[Array, "B T N K"]
 ) -> Shaped[Array, "B T N"]:
-    posterior_d = distrax.Categorical(logits=posterior)
-    prior_d = distrax.Categorical(logits=prior)
+    posterior_d = distrax.Categorical(logits=posterior.astype(jnp.float32))
+    prior_d = distrax.Categorical(logits=prior.astype(jnp.float32))
     return posterior_d.kl_divergence(prior_d)  # type: ignore
 
 
@@ -56,7 +60,7 @@ def compute_balanced_kl(
 def twohot_loss(preds, x, max_exp=9):
     "Compute the symexp categorical loss described in Dreamerv3."
     B = get_bins(n_bins=preds.reward.shape[-1], max_exp=max_exp)
-    r_scaled = symlog(x.reward)
+    r_scaled = symlog(x.reward.astype(jnp.float32))
     true_reward_encoded = twohot_encode(r_scaled, B=B)
     reward_loss = optax.softmax_cross_entropy(preds.reward, true_reward_encoded)
     reward_loss = reward_loss.mean()

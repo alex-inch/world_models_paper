@@ -9,16 +9,21 @@ from dreamer.wm import DreamerConfig
 from dreamer.wm.rssm import RSSMOut
 
 
-def test_actor_and_critic_return_bounded_actions_and_scalar_values():
+@pytest.mark.parametrize("dtype", ["float32", "bfloat16", "float16"])
+def test_actor_and_critic_return_bounded_actions_and_scalar_values(dtype):
     cfg = DreamerConfig(
-        wm_hidden_dim=4, num_latent_dists=2, num_latent_classes=2, agent_hidden_dim=8
+        wm_hidden_dim=4,
+        num_latent_dists=2,
+        num_latent_classes=2,
+        agent_hidden_dim=8,
+        dtype=dtype,
     )
     actor = Actor(cfg, nnx.Rngs(0))
     critic = Critic(cfg, nnx.Rngs(1))
     state = RSSMOut(
-        hidden=jnp.zeros((2, 3, 4)),
-        latent_sample=jnp.zeros((2, 3, 4)),
-        prior=jnp.zeros((2, 3, 2, 2)),
+        hidden=jnp.zeros((2, 3, 4), dtype=dtype),
+        latent_sample=jnp.zeros((2, 3, 4), dtype=dtype),
+        prior=jnp.zeros((2, 3, 2, 2), dtype=dtype),
     )
     action_dist = actor(state.joint_latent)
     values = critic(state.joint_latent)
@@ -26,6 +31,8 @@ def test_actor_and_critic_return_bounded_actions_and_scalar_values():
     assert actions.shape == (2, 3, 3)
     assert values.shape == (2, 3)
     assert action_dist.entropy().shape == (2, 3)
+    assert actions.dtype == values.dtype == action_dist.entropy().dtype == jnp.float32
+    assert action_dist.loc.dtype == action_dist.scale.dtype == jnp.float32
     assert np.all(np.asarray(actions) >= [-1, 0, 0])
     assert np.all(np.asarray(actions) <= [1, 1, 1])
 

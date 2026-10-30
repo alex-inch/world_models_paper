@@ -71,6 +71,28 @@ def test_twohot_loss_gradient_matches_target_distribution(reward_case):
     assert jnp.allclose(actual, expected)
 
 
+@pytest.mark.parametrize("dtype", ["float32", "bfloat16", "float16"])
+def test_twohot_loss_encodes_small_rewards_in_float32(reward_case, dtype):
+    cfg, batch, preds, _labels = reward_case
+    batch = replace(batch, reward=jnp.full(batch.reward.shape, 1e-3, dtype=dtype))
+
+    # A small positive reward lies between the zero and +2 symlog bins.
+    # Computing log(1 + reward) in bfloat16 would round the target to zero.
+    fraction = jnp.log1p(batch.reward.astype(jnp.float32)) / 2
+    labels = jnp.zeros_like(preds.reward)
+    labels = labels.at[..., 2].set(1 - fraction)
+    labels = labels.at[..., 3].set(fraction)
+
+    def loss(logits):
+        return twohot_loss(
+            replace(preds, reward=logits), batch, cfg.reward_encoding_max_exp
+        )
+
+    actual = jax.grad(loss)(preds.reward)
+    expected = (jax.nn.softmax(preds.reward) - labels) / batch.reward.size
+    assert jnp.allclose(actual, expected, rtol=1e-5, atol=1e-7)
+
+
 @pytest.mark.parametrize("loss_fn", [dreamer_wm_loss_fn, DreamerWM.loss_fn])
 def test_world_model_loss_uses_configured_reward_limits(loss_fn, reward_case):
     cfg, batch, preds, labels = reward_case
