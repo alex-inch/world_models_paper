@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="708.015pt" height="377.28pt" viewBox="0 0 708.015 377.28" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-04T12:50:35.317910</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.2, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 377.28 
+L 708.015 377.28 
+L 708.015 0 
+L 0 0 
+z
+" style="fill: #f7f4eb"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 64.825 307.92375 
+L 700.815 307.92375 
+L 700.815 7.2 
+L 64.825 7.2 
+z
+" style="fill: #f7f4eb"/>
+   </g>
+   <g id="matplotlib.axis_1">
+    <g id="xtick_1">
+     <g id="line2d_1"/>
+     <g id="text_1">
+      <text style="font-size: 12px; font-family: 'Routed Gothic'; text-anchor: middle; fill: #343633" x="140.568857" y="327.67375" transform="rotate(-0 140.568857 327.67375)">Original</text>
+     </g>
+    </g>
+    <g id="xtick_2">
+     <g id="line2d_2"/>
+     <g id="text_2">
+      <text style="font-size: 12px; font-family: 'Routed Gothic'; fill: #343633" transform="translate(271.108682 328.212812)">+ Renderer</text>
+      <text style="font-size: 12px; font-family: 'Routed Gothic'; fill: #343633" transform="translate(295.272744 341.290937)">fix</text>
+     </g>
+    </g>
+    <g id="xtick_3">
+     <g id="line2d_3"/>
+     <g id="text_3">
+      <text style="font-size: 12px; font-family: 'Routed Gothic'; fill: #343633" transform="translate(437.625068 328.212812)">+ Further</text>
+      <text style="font-size: 12px; font-family: 'Routed Gothic'; fill: #343633" transform="translate(426.656318 341.290937)">optimisations</text>
+     </g>
+    </g>
+    <g id="xtick_4">
+     <g id="line2d_4"/>
+     <g id="text_4">
+      <text style="font-size: 12px; font-family: 'Routed Gothic'; text-anchor: middle; fill: #343633" x="625.071143" y="327.67375" transform="rotate(-0 625.071143 327.67375)">+ BF16</text>
+     </g>
+    </g>
+    <g id="text_5">
+     <text style="font-size: 10px; font-family: 'Routed Gothic'; text-anchor: middle; fill: #343633" x="382.82" y="368.205" transform="rotate(-0 382.82 368.205)">1 MODEL UPDATE + 4 ENVIRONMENT TRANSITIONS</text>
+    </g>
+   </g>
+   <g id="matplotlib.axis_2">
+    <g id="ytick_1">
+     <g id="line2d_5">
+      <path d="M 64.825 307.92375 
+L 700.815 307.92375 
+" clip-path="url(#pac26c9a5a0)" style="fill: none; stroke-dasharray: 2.59,1.12; stroke-dashoffset: 0; stroke: #343633; stroke-opacity: 0.18; stroke-width: 0.7"/>
+     </g>
+     <g id="line2d_6"/>
+     <g id="text_6">
+      <text style="font-size: 12px; font-family: 'Routed Gothic'; text-anchor: end; fill: #343633" x="54.825" y="312.79875" transform="rotate(-0 54.825 312.79875)">0</text>
+     </g>
+    </g>
+    <g id="ytick_2">
+     <g id="line2d_7">
+      <path d="M 64.825 260.624622 
+L 700.815 260.624622 
+" clip-path="url(#pac26c9a5a0)" style="fill: none; stroke-dasharray: 2.59,1.12; stroke-dashoffset: 0; stroke: #343633; stroke-opacity: 0.18; stroke-width: 0.7"/>
+     </g>
+     <g id="line2d_8"/>
+     <g id="text_7">
+      <text style="font-size: 12px; font-family: 'Routed Gothic'; text-anchor: end; fill: #343633" x="54.825" y="265.499622" transform="rotate(-0 54.825 265.499622)">100</text>
+     </g>
+    </g>
+    <g id="ytick_3">
+     <g id="line2d_9">
+      <path d="M 64.825 213.325495 
+L 700.815 213.325495 
+" clip-path="url(#pac26c9a5a0)" style="fill: none; stroke-dasharray: 2.59,1.12; stroke-dashoffset: 0; stroke: #343633; stroke-opacity: 0.18; stroke-width: 0.7"/>
+     </g>
+     <g id="line2d_10"/>
+     <g id="text_8">
+      <text style="font-size: 12px; font-family: 'Routed Gothic'; text-anchor: end; fill: #343633" x="54.825" y="218.200495" transform="rotate(-0 54.825 218.200495)">200</text>
+     </g>
+    </g>
+    <g id="ytick_4">
+     <g id="line2d_11">
+      <path d="M 64.825 166.026367 
+L 700.815 166.026367 
+" clip-path="url(#pac26c9a5a0)" style="fill: none; stroke-dasharray: 2.59,1.12; stroke-dashoffset: 0; stroke: #343633; stroke-opacity: 0.18; stroke-width: 0.7"/>
+     </g>
+     <g id="line2d_12"/>
+     <g id="text_9">
+      <text style="font-size: 12px; font-family: 'Routed Gothic'; text-anchor: end; fill: #343633" x="54.825" y="170.901367" transform="rotate(-0 54.825 170.901367)">300</text>
+     </g>
+    </g>
+    <g id="ytick_5">
+     <g id="line2d_13">
+      <path d="M 64.825 118.72724 
+L 700.815 118.72724 
+" clip-path="url(#pac26c9a5a0)" style="fill: none; stroke-dasharray: 2.59,1.12; stroke-dashoffset: 0; stroke: #343633; stroke-opacity: 0.18; stroke-width: 0.7"/>
+     </g>
+     <g id="line2d_14"/>
+     <g id="text_10">
+      <text style="font-size: 12px; font-family: 'Routed Gothic'; text-anchor: end; fill: #343633" x="54.825" y="123.60224" transform="rotate(-0 54.825 123.60224)">400</text>
+     </g>
+    </g>
+    <g id="ytick_6">
+     <g id="line2d_15">
+      <path d="M 64.825 71.428112 
+L 700.815 71.428112 
+" clip-path="url(#pac26c9a5a0)" style="fill: none; stroke-dasharray: 2.59,1.12; stroke-dashoffset: 0; stroke: #343633; stroke-opacity: 0.18; stroke-width: 0.7"/>
+     </g>
+     <g id="line2d_16"/>
+     <g id="text_11">
+      <text style="font-size: 12px; font-family: 'Routed Gothic'; text-anchor: end; fill: #343633" x="54.825" y="76.303112" transform="rotate(-0 54.825 76.303112)">500</text>
+     </g>
+    </g>
+    <g id="ytick_7">
+     <g id="line2d_17">
+      <path d="M 64.825 24.128984 
+L 700.815 24.128984 
+" clip-path="url(#pac26c9a5a0)" style="fill: none; stroke-dasharray: 2.59,1.12; stroke-dashoffset: 0; stroke: #343633; stroke-opacity: 0.18; stroke-width: 0.7"/>
+     </g>
+     <g id="line2d_18"/>
+     <g id="text_12">
+      <text style="font-size: 12px; font-family: 'Routed Gothic'; text-anchor: end; fill: #343633" x="54.825" y="29.003984" transform="rotate(-0 54.825 29.003984)">600</text>
+     </g>
+    </g>
+    <g id="text_13">
+     <text style="font-size: 12px; font-family: 'Routed Gothic'; text-anchor: middle; fill: #343633" x="16.95" y="157.561875" transform="rotate(-90 16.95 157.561875)">TIME PER TRAINING STEP (MS)</text>
+    </g>
+   </g>
+   <g id="patch_3">
+    <path d="M 93.733636 307.92375 
+L 187.404078 307.92375 
+L 187.404078 234.970041 
+L 93.733636 234.970041 
+z
+" clip-path="url(#pac26c9a5a0)" style="fill: #343633"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 255.234398 307.92375 
+L 348.90484 307.92375 
+L 348.90484 235.352285 
+L 255.234398 235.352285 
+z
+" clip-path="url(#pac26c9a5a0)" style="fill: #343633"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 416.73516 307.92375 
+L 510.405602 307.92375 
+L 510.405602 240.964762 
+L 416.73516 240.964762 
+z
+" clip-path="url(#pac26c9a5a0)" style="fill: #343633"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 578.235922 307.92375 
+L 671.906364 307.92375 
+L 671.906364 274.723166 
+L 578.235922 274.723166 
+z
+" clip-path="url(#pac26c9a5a0)" style="fill: #343633"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 93.733636 234.970041 
+L 187.404078 234.970041 
+L 187.404078 48.679138 
+L 93.733636 48.679138 
+z
+" clip-path="url(#pac26c9a5a0)" style="fill: #b4b3ac"/>
+   </g>
+   <g id="patch_8">
+    <path d="M 255.234398 235.352285 
+L 348.90484 235.352285 
+L 348.90484 233.237015 
+L 255.234398 233.237015 
+z
+" clip-path="url(#pac26c9a5a0)" style="fill: #b4b3ac"/>
+   </g>
+   <g id="patch_9">
+    <path d="M 416.73516 240.964762 
+L 510.405602 240.964762 
+L 510.405602 238.759237 
+L 416.73516 238.759237 
+z
+" clip-path="url(#pac26c9a5a0)" style="fill: #b4b3ac"/>
+   </g>
+   <g id="patch_10">
+    <path d="M 578.235922 274.723166 
+L 671.906364 274.723166 
+L 671.906364 272.57413 
+L 578.235922 272.57413 
+z
+" clip-path="url(#pac26c9a5a0)" style="fill: #b4b3ac"/>
+   </g>
+   <g id="text_14">
+    <text style="font-size: 12px; font-family: 'Routed Gothic'; text-anchor: middle; fill: #343633" x="140.568857" y="41.699225" transform="rotate(-0 140.568857 41.699225)">548 ms</text>
+   </g>
+   <g id="text_15">
+    <text style="font-size: 12px; font-family: 'Routed Gothic'; text-anchor: middle; fill: #343633" x="302.069619" y="226.257102" transform="rotate(-0 302.069619 226.257102)">158 ms</text>
+   </g>
+   <g id="text_16">
+    <text style="font-size: 12px; font-family: 'Routed Gothic'; text-anchor: middle; fill: #343633" x="463.570381" y="231.779324" transform="rotate(-0 463.570381 231.779324)">146 ms</text>
+   </g>
+   <g id="text_17">
+    <text style="font-size: 12px; font-family: 'Routed Gothic'; text-anchor: middle; fill: #343633" x="625.071143" y="265.594218" transform="rotate(-0 625.071143 265.594218)">75 ms</text>
+   </g>
+   <g id="legend_1">
+    <g id="patch_11">
+     <path d="M 505.791875 26.0375 
+L 527.791875 26.0375 
+L 527.791875 18.3375 
+L 505.791875 18.3375 
+z
+" style="fill: #343633"/>
+    </g>
+    <g id="text_18">
+     <text style="font-size: 11px; font-family: 'Routed Gothic'; text-anchor: start; fill: #343633" x="536.591875" y="26.0375" transform="rotate(-0 536.591875 26.0375)">MODEL LEARNING</text>
+    </g>
+    <g id="patch_12">
+     <path d="M 505.791875 42.5375 
+L 527.791875 42.5375 
+L 527.791875 34.8375 
+L 505.791875 34.8375 
+z
+" style="fill: #b4b3ac"/>
+    </g>
+    <g id="text_19">
+     <text style="font-size: 11px; font-family: 'Routed Gothic'; text-anchor: start; fill: #343633" x="536.591875" y="42.5375" transform="rotate(-0 536.591875 42.5375)">ENVIRONMENT COLLECTION</text>
+    </g>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="pac26c9a5a0">
+   <rect x="64.825" y="7.2" width="635.99" height="300.72375"/>
+  </clipPath>
+ </defs>
+</svg>

@@ -1,0 +1,13 @@
+{
+  "run_id": "f3bqo4fm",
+  "peak_train_step": 332000,
+  "peak_env_steps": 1328000,
+  "peak_mean": 916.9089173216021,
+  "peak_mean_ci_95": [
+    911.6412938101437,
+    922.1765408330605
+  ],
+  "elapsed_seconds": 26295.868250939064,
+  "episodes_per_checkpoint": 64,
+  "ci_method": "Pointwise Student t 95% CI: mean +/- t(0.975, 63) * sample std / sqrt(64). Evaluation-episode uncertainty for a single training run."
+}

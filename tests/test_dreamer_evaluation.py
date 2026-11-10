@@ -67,7 +67,7 @@ def test_evaluation_counts_each_episode_once_and_handles_a_partial_batch(
 ):
     envs = gym.vector.SyncVectorEnv([ShortEpisodeEnv, ShortEpisodeEnv])
     wm = SimpleNamespace(
-        cfg=SimpleNamespace(action_dim=3),
+        cfg=SimpleNamespace(action_dim=3, dtype="float32"),
         rssm=SimpleNamespace(initialize_state=lambda n: (jnp.zeros((n, 1)),) * 2),
     )
     metadata = {"train_args": {"env_id": "test"}}
@@ -90,4 +90,32 @@ def test_evaluation_counts_each_episode_once_and_handles_a_partial_batch(
     )
     np.testing.assert_array_equal(returns, expected_returns)
     assert lengths == expected_lengths
+    assert envs.closed
+
+
+@pytest.mark.parametrize("dtype", ["bfloat16", "float16"])
+def test_low_precision_checkpoint_runs_with_full_precision_actions_and_rewards(monkeypatch, dtype):
+    from flax import nnx
+    from dreamer.actor_critic import Actor
+    from dreamer.wm import DreamerConfig, DreamerWM
+
+    class PreciseRewardEnv(ShortEpisodeEnv):
+        def step(self, action):
+            assert action.dtype == np.float32
+            observation, _, terminated, truncated, info = super().step(action)
+            return observation, 1.23456789, terminated, truncated, info
+
+    cfg = DreamerConfig(wm_hidden_dim=4, num_latent_dists=2,
+                        num_latent_classes=2, agent_hidden_dim=8, dtype=dtype)
+    models = {"world_model": DreamerWM(cfg, rngs=nnx.Rngs(0)),
+              "actor": Actor(cfg, nnx.Rngs(1))}
+    envs = gym.vector.SyncVectorEnv([PreciseRewardEnv, PreciseRewardEnv])
+    monkeypatch.setattr(evaluation, "load_checkpoint",
+                        lambda _: (models, {"train_args": {"env_id": "test"}}))
+    monkeypatch.setattr(evaluation.gym, "make_vec", lambda *args, **kwargs: envs)
+    returns, lengths, _ = evaluation.evaluate_checkpoint(
+        Path("checkpoint"), num_episodes=3, num_envs=2, max_steps=5, seed=0,
+    )
+    assert lengths == [1, 3, 1]
+    np.testing.assert_allclose(returns, np.array([1, 3, 1]) * 1.23456789, rtol=1e-10)
     assert envs.closed

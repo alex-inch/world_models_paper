@@ -1,0 +1,774 @@
+2026-11-02 16:31:40.302 | INFO     | __main__:main:388 - Using JAX devices: [CudaDevice(id=0)]
+wandb: [wandb.login()] Loaded credentials for https://api.forge.coreweave.com from /home/pemb7576/.netrc.
+wandb: Currently logged in as: alex-inch (alex-inch-ori) to https://api.forge.coreweave.com. Use `wandb login --relogin` to force relogin
+wandb: setting up run f3bqo4fm
+wandb: Tracking run with wandb version 0.31.0
+wandb: Run data is saved locally in /data/engs-a2i/pemb7576/world_models_paper/wandb/run-20261102_163149-f3bqo4fm
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run arc-9237753-long
+wandb: ⭐️ View project at https://forge.coreweave.com/wandb/alex-inch-ori/dreamer-reimplementation
+wandb: 🚀 View run at https://forge.coreweave.com/wandb/alex-inch-ori/dreamer-reimplementation/runs/f3bqo4fm
+2026-11-02 16:31:50.667 | INFO     | __main__:main:396 - Beginning training run with args:
+{'name': 'arc-9237753-long',
+ 'cfg': {'num_latent_classes': 32,
+         'num_latent_dists': 32,
+         'action_dim': 3,
+         'wm_hidden_dim': 1024,
+         'img_height': 64,
+         'img_width': 64,
+         'img_channels': 3,
+         'activation': 'elu',
+         'kl_alpha': 0.8,
+         'kl_beta': 0.1,
+         'td_lambda': 0.95,
+         'agent_hidden_dim': 100,
+         'discount': 0.997,
+         'reward_encoding_bins': 127,
+         'reward_encoding_max_exp': 9,
+         'actor_entropy_weight': 0.0005,
+         'dtype': 'bfloat16'},
+ 'backend': 'cuda',
+ 'seed': 20,
+ 'num_envs': 8,
+ 'env_id': 'CarRacing-v3',
+ 'buffer_size': 100,
+ 'outer_train_steps': 200,
+ 'batch_size': 32,
+ 'seq_length': 64,
+ 'wm_lr': 0.0001,
+ 'actor_lr': 1e-05,
+ 'critic_lr': 1e-05,
+ 'adamw_eps': 1e-05,
+ 'collect_interval': 2000,
+ 'imagination_horizon': 15,
+ 'steps_per_eval': 10,
+ 'steps_per_checkpoint': 5,
+ 'num_eval_episodes': 64,
+ 'checkpoint_dir': 'experiments/dreamer/checkpoints',
+ 'debug': False,
+ 'profile': False}
+2026-11-02 16:31:50.667 | INFO     | __main__:main:404 - Using optimised CarRacing renderer for training and in-run evaluation
+2026-11-02 16:32:54.907 | INFO     | __main__:train:261 - world_model: 15,051,619 trainable parameters
+2026-11-02 16:32:54.907 | INFO     | __main__:train:261 - actor: 215,606 trainable parameters
+2026-11-02 16:32:54.907 | INFO     | __main__:train:261 - critic: 215,101 trainable parameters
+2026-11-02 16:32:56.751 | INFO     | __main__:train:279 - Saving model checkpoints in experiments/dreamer/checkpoints/f3bqo4fm
+2026-11-02 16:32:56.866 | INFO     | __main__:train:291 - Step 1: Commencing data collection
+2026-11-02 16:32:56.867 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 16:33:23.137 | INFO     | __main__:train:312 - Step 1: Commencing model learning
+W1102 16:33:38.624892  839203 cuda_timer.cc:88] Delay kernel timed out: measured time has sub-optimal accuracy. There may be a missing warmup execution, please investigate in Nsight Systems.
+W1102 16:33:39.452812  839203 cuda_timer.cc:88] Delay kernel timed out: measured time has sub-optimal accuracy. There may be a missing warmup execution, please investigate in Nsight Systems.
+2026-11-02 16:36:33.884 | INFO     | __main__:eval_step:176 - Beginning eval step
+2026-11-02 16:36:34.507 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 64 rollouts of 1000 transitions
+wandb: Encoding video...
+2026-11-02 16:38:15.233 | INFO     | __main__:eval_step:197 - Eval step completed with mean return -76.08
+2026-11-02 16:38:17.338 | INFO     | __main__:train:291 - Step 2: Commencing data collection
+2026-11-02 16:38:17.338 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 16:38:26.401 | INFO     | __main__:train:312 - Step 2: Commencing model learning
+2026-11-02 16:40:46.765 | INFO     | __main__:train:291 - Step 3: Commencing data collection
+2026-11-02 16:40:46.765 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 16:40:55.862 | INFO     | __main__:train:312 - Step 3: Commencing model learning
+2026-11-02 16:43:16.199 | INFO     | __main__:train:291 - Step 4: Commencing data collection
+2026-11-02 16:43:16.199 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 16:43:25.253 | INFO     | __main__:train:312 - Step 4: Commencing model learning
+2026-11-02 16:45:45.679 | INFO     | __main__:train:291 - Step 5: Commencing data collection
+2026-11-02 16:45:45.679 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 16:45:54.840 | INFO     | __main__:train:312 - Step 5: Commencing model learning
+2026-11-02 16:48:15.385 | INFO     | __main__:train:291 - Step 6: Commencing data collection
+2026-11-02 16:48:15.385 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 16:48:24.494 | INFO     | __main__:train:312 - Step 6: Commencing model learning
+2026-11-02 16:50:45.690 | INFO     | __main__:train:291 - Step 7: Commencing data collection
+2026-11-02 16:50:45.691 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 16:50:54.716 | INFO     | __main__:train:312 - Step 7: Commencing model learning
+2026-11-02 16:53:15.071 | INFO     | __main__:train:291 - Step 8: Commencing data collection
+2026-11-02 16:53:15.071 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 16:53:24.228 | INFO     | __main__:train:312 - Step 8: Commencing model learning
+2026-11-02 16:55:44.878 | INFO     | __main__:train:291 - Step 9: Commencing data collection
+2026-11-02 16:55:44.878 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 16:55:53.985 | INFO     | __main__:train:312 - Step 9: Commencing model learning
+2026-11-02 16:58:14.482 | INFO     | __main__:train:291 - Step 10: Commencing data collection
+2026-11-02 16:58:14.482 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 16:58:23.559 | INFO     | __main__:train:312 - Step 10: Commencing model learning
+2026-11-02 17:00:44.225 | INFO     | __main__:train:291 - Step 11: Commencing data collection
+2026-11-02 17:00:44.225 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:00:53.319 | INFO     | __main__:train:312 - Step 11: Commencing model learning
+2026-11-02 17:03:14.333 | INFO     | __main__:eval_step:176 - Beginning eval step
+2026-11-02 17:03:14.343 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 64 rollouts of 1000 transitions
+wandb: Encoding video...
+2026-11-02 17:04:28.887 | INFO     | __main__:eval_step:197 - Eval step completed with mean return 272.61
+2026-11-02 17:04:31.203 | INFO     | __main__:train:291 - Step 12: Commencing data collection
+2026-11-02 17:04:31.203 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:04:40.414 | INFO     | __main__:train:312 - Step 12: Commencing model learning
+2026-11-02 17:07:01.025 | INFO     | __main__:train:291 - Step 13: Commencing data collection
+2026-11-02 17:07:01.025 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:07:10.245 | INFO     | __main__:train:312 - Step 13: Commencing model learning
+2026-11-02 17:09:30.783 | INFO     | __main__:train:291 - Step 14: Commencing data collection
+2026-11-02 17:09:30.783 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:09:39.987 | INFO     | __main__:train:312 - Step 14: Commencing model learning
+2026-11-02 17:12:00.756 | INFO     | __main__:train:291 - Step 15: Commencing data collection
+2026-11-02 17:12:00.757 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:12:09.795 | INFO     | __main__:train:312 - Step 15: Commencing model learning
+2026-11-02 17:14:30.427 | INFO     | __main__:train:291 - Step 16: Commencing data collection
+2026-11-02 17:14:30.428 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:14:39.655 | INFO     | __main__:train:312 - Step 16: Commencing model learning
+2026-11-02 17:17:00.865 | INFO     | __main__:train:291 - Step 17: Commencing data collection
+2026-11-02 17:17:00.865 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:17:10.104 | INFO     | __main__:train:312 - Step 17: Commencing model learning
+2026-11-02 17:19:30.647 | INFO     | __main__:train:291 - Step 18: Commencing data collection
+2026-11-02 17:19:30.648 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:19:39.895 | INFO     | __main__:train:312 - Step 18: Commencing model learning
+2026-11-02 17:22:00.670 | INFO     | __main__:train:291 - Step 19: Commencing data collection
+2026-11-02 17:22:00.670 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:22:09.911 | INFO     | __main__:train:312 - Step 19: Commencing model learning
+2026-11-02 17:24:30.399 | INFO     | __main__:train:291 - Step 20: Commencing data collection
+2026-11-02 17:24:30.399 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:24:39.634 | INFO     | __main__:train:312 - Step 20: Commencing model learning
+2026-11-02 17:27:00.209 | INFO     | __main__:train:291 - Step 21: Commencing data collection
+2026-11-02 17:27:00.209 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:27:09.490 | INFO     | __main__:train:312 - Step 21: Commencing model learning
+2026-11-02 17:29:30.351 | INFO     | __main__:eval_step:176 - Beginning eval step
+2026-11-02 17:29:30.361 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 64 rollouts of 1000 transitions
+wandb: Encoding video...
+2026-11-02 17:30:46.050 | INFO     | __main__:eval_step:197 - Eval step completed with mean return 687.21
+2026-11-02 17:30:49.502 | INFO     | __main__:train:291 - Step 22: Commencing data collection
+2026-11-02 17:30:49.503 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:30:58.875 | INFO     | __main__:train:312 - Step 22: Commencing model learning
+2026-11-02 17:33:19.399 | INFO     | __main__:train:291 - Step 23: Commencing data collection
+2026-11-02 17:33:19.399 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:33:28.718 | INFO     | __main__:train:312 - Step 23: Commencing model learning
+2026-11-02 17:35:49.590 | INFO     | __main__:train:291 - Step 24: Commencing data collection
+2026-11-02 17:35:49.590 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:35:58.923 | INFO     | __main__:train:312 - Step 24: Commencing model learning
+2026-11-02 17:38:19.508 | INFO     | __main__:train:291 - Step 25: Commencing data collection
+2026-11-02 17:38:19.508 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:38:28.774 | INFO     | __main__:train:312 - Step 25: Commencing model learning
+2026-11-02 17:40:49.726 | INFO     | __main__:train:291 - Step 26: Commencing data collection
+2026-11-02 17:40:49.726 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:40:58.844 | INFO     | __main__:train:312 - Step 26: Commencing model learning
+2026-11-02 17:43:20.664 | INFO     | __main__:train:291 - Step 27: Commencing data collection
+2026-11-02 17:43:20.665 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:43:29.973 | INFO     | __main__:train:312 - Step 27: Commencing model learning
+2026-11-02 17:45:51.022 | INFO     | __main__:train:291 - Step 28: Commencing data collection
+2026-11-02 17:45:51.022 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:46:00.276 | INFO     | __main__:train:312 - Step 28: Commencing model learning
+2026-11-02 17:48:20.867 | INFO     | __main__:train:291 - Step 29: Commencing data collection
+2026-11-02 17:48:20.868 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:48:30.170 | INFO     | __main__:train:312 - Step 29: Commencing model learning
+2026-11-02 17:50:51.152 | INFO     | __main__:train:291 - Step 30: Commencing data collection
+2026-11-02 17:50:51.152 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:51:00.503 | INFO     | __main__:train:312 - Step 30: Commencing model learning
+2026-11-02 17:53:21.042 | INFO     | __main__:train:291 - Step 31: Commencing data collection
+2026-11-02 17:53:21.043 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:53:30.292 | INFO     | __main__:train:312 - Step 31: Commencing model learning
+2026-11-02 17:55:52.196 | INFO     | __main__:eval_step:176 - Beginning eval step
+2026-11-02 17:55:52.206 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 64 rollouts of 1000 transitions
+wandb: Encoding video...
+2026-11-02 17:57:07.737 | INFO     | __main__:eval_step:197 - Eval step completed with mean return 643.32
+2026-11-02 17:57:10.199 | INFO     | __main__:train:291 - Step 32: Commencing data collection
+2026-11-02 17:57:10.199 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:57:19.409 | INFO     | __main__:train:312 - Step 32: Commencing model learning
+2026-11-02 17:59:39.762 | INFO     | __main__:train:291 - Step 33: Commencing data collection
+2026-11-02 17:59:39.763 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 17:59:48.966 | INFO     | __main__:train:312 - Step 33: Commencing model learning
+2026-11-02 18:02:10.001 | INFO     | __main__:train:291 - Step 34: Commencing data collection
+2026-11-02 18:02:10.001 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:02:19.441 | INFO     | __main__:train:312 - Step 34: Commencing model learning
+2026-11-02 18:04:40.060 | INFO     | __main__:train:291 - Step 35: Commencing data collection
+2026-11-02 18:04:40.060 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:04:49.471 | INFO     | __main__:train:312 - Step 35: Commencing model learning
+2026-11-02 18:07:10.238 | INFO     | __main__:train:291 - Step 36: Commencing data collection
+2026-11-02 18:07:10.238 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:07:19.589 | INFO     | __main__:train:312 - Step 36: Commencing model learning
+2026-11-02 18:09:41.226 | INFO     | __main__:train:291 - Step 37: Commencing data collection
+2026-11-02 18:09:41.227 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:09:50.556 | INFO     | __main__:train:312 - Step 37: Commencing model learning
+2026-11-02 18:12:11.392 | INFO     | __main__:train:291 - Step 38: Commencing data collection
+2026-11-02 18:12:11.392 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:12:20.837 | INFO     | __main__:train:312 - Step 38: Commencing model learning
+2026-11-02 18:14:41.411 | INFO     | __main__:train:291 - Step 39: Commencing data collection
+2026-11-02 18:14:41.411 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:14:50.796 | INFO     | __main__:train:312 - Step 39: Commencing model learning
+2026-11-02 18:17:11.402 | INFO     | __main__:train:291 - Step 40: Commencing data collection
+2026-11-02 18:17:11.402 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:17:20.648 | INFO     | __main__:train:312 - Step 40: Commencing model learning
+2026-11-02 18:19:41.432 | INFO     | __main__:train:291 - Step 41: Commencing data collection
+2026-11-02 18:19:41.432 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:19:50.762 | INFO     | __main__:train:312 - Step 41: Commencing model learning
+2026-11-02 18:22:12.313 | INFO     | __main__:eval_step:176 - Beginning eval step
+2026-11-02 18:22:12.322 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 64 rollouts of 1000 transitions
+wandb: Encoding video...
+2026-11-02 18:23:29.192 | INFO     | __main__:eval_step:197 - Eval step completed with mean return 708.04
+2026-11-02 18:23:31.006 | INFO     | __main__:train:291 - Step 42: Commencing data collection
+2026-11-02 18:23:31.006 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:23:40.340 | INFO     | __main__:train:312 - Step 42: Commencing model learning
+2026-11-02 18:26:00.740 | INFO     | __main__:train:291 - Step 43: Commencing data collection
+2026-11-02 18:26:00.740 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:26:10.006 | INFO     | __main__:train:312 - Step 43: Commencing model learning
+2026-11-02 18:28:30.905 | INFO     | __main__:train:291 - Step 44: Commencing data collection
+2026-11-02 18:28:30.905 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:28:40.267 | INFO     | __main__:train:312 - Step 44: Commencing model learning
+2026-11-02 18:31:00.848 | INFO     | __main__:train:291 - Step 45: Commencing data collection
+2026-11-02 18:31:00.849 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:31:10.100 | INFO     | __main__:train:312 - Step 45: Commencing model learning
+2026-11-02 18:33:31.051 | INFO     | __main__:train:291 - Step 46: Commencing data collection
+2026-11-02 18:33:31.051 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:33:40.317 | INFO     | __main__:train:312 - Step 46: Commencing model learning
+2026-11-02 18:36:01.432 | INFO     | __main__:train:291 - Step 47: Commencing data collection
+2026-11-02 18:36:01.432 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:36:10.898 | INFO     | __main__:train:312 - Step 47: Commencing model learning
+2026-11-02 18:38:31.972 | INFO     | __main__:train:291 - Step 48: Commencing data collection
+2026-11-02 18:38:31.972 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:38:41.244 | INFO     | __main__:train:312 - Step 48: Commencing model learning
+2026-11-02 18:41:02.024 | INFO     | __main__:train:291 - Step 49: Commencing data collection
+2026-11-02 18:41:02.024 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:41:11.309 | INFO     | __main__:train:312 - Step 49: Commencing model learning
+2026-11-02 18:43:32.024 | INFO     | __main__:train:291 - Step 50: Commencing data collection
+2026-11-02 18:43:32.024 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:43:41.454 | INFO     | __main__:train:312 - Step 50: Commencing model learning
+2026-11-02 18:46:02.244 | INFO     | __main__:train:291 - Step 51: Commencing data collection
+2026-11-02 18:46:02.244 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:46:11.394 | INFO     | __main__:train:312 - Step 51: Commencing model learning
+2026-11-02 18:48:32.870 | INFO     | __main__:eval_step:176 - Beginning eval step
+2026-11-02 18:48:32.879 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 64 rollouts of 1000 transitions
+wandb: Encoding video...
+2026-11-02 18:49:48.295 | INFO     | __main__:eval_step:197 - Eval step completed with mean return 868.45
+2026-11-02 18:49:50.780 | INFO     | __main__:train:291 - Step 52: Commencing data collection
+2026-11-02 18:49:50.781 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:50:00.068 | INFO     | __main__:train:312 - Step 52: Commencing model learning
+2026-11-02 18:52:20.401 | INFO     | __main__:train:291 - Step 53: Commencing data collection
+2026-11-02 18:52:20.401 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:52:29.632 | INFO     | __main__:train:312 - Step 53: Commencing model learning
+2026-11-02 18:54:50.103 | INFO     | __main__:train:291 - Step 54: Commencing data collection
+2026-11-02 18:54:50.104 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:54:59.590 | INFO     | __main__:train:312 - Step 54: Commencing model learning
+2026-11-02 18:57:20.083 | INFO     | __main__:train:291 - Step 55: Commencing data collection
+2026-11-02 18:57:20.083 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:57:29.272 | INFO     | __main__:train:312 - Step 55: Commencing model learning
+2026-11-02 18:59:50.122 | INFO     | __main__:train:291 - Step 56: Commencing data collection
+2026-11-02 18:59:50.122 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 18:59:59.261 | INFO     | __main__:train:312 - Step 56: Commencing model learning
+2026-11-02 19:02:20.317 | INFO     | __main__:train:291 - Step 57: Commencing data collection
+2026-11-02 19:02:20.318 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 19:02:29.596 | INFO     | __main__:train:312 - Step 57: Commencing model learning
+2026-11-02 19:04:50.209 | INFO     | __main__:train:291 - Step 58: Commencing data collection
+2026-11-02 19:04:50.209 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 19:04:59.372 | INFO     | __main__:train:312 - Step 58: Commencing model learning
+2026-11-02 19:07:20.024 | INFO     | __main__:train:291 - Step 59: Commencing data collection
+2026-11-02 19:07:20.024 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 19:07:29.365 | INFO     | __main__:train:312 - Step 59: Commencing model learning
+2026-11-02 19:09:50.112 | INFO     | __main__:train:291 - Step 60: Commencing data collection
+2026-11-02 19:09:50.113 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 19:09:59.225 | INFO     | __main__:train:312 - Step 60: Commencing model learning
+2026-11-02 19:12:19.688 | INFO     | __main__:train:291 - Step 61: Commencing data collection
+2026-11-02 19:12:19.689 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 19:12:28.888 | INFO     | __main__:train:312 - Step 61: Commencing model learning
+2026-11-02 19:14:50.303 | INFO     | __main__:eval_step:176 - Beginning eval step
+2026-11-02 19:14:50.311 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 64 rollouts of 1000 transitions
+wandb: Encoding video...
+2026-11-02 19:16:05.365 | INFO     | __main__:eval_step:197 - Eval step completed with mean return 859.23
+2026-11-02 19:16:07.551 | INFO     | __main__:train:291 - Step 62: Commencing data collection
+2026-11-02 19:16:07.551 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 19:16:16.782 | INFO     | __main__:train:312 - Step 62: Commencing model learning
+2026-11-02 19:18:37.090 | INFO     | __main__:train:291 - Step 63: Commencing data collection
+2026-11-02 19:18:37.091 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 19:18:46.312 | INFO     | __main__:train:312 - Step 63: Commencing model learning
+2026-11-02 19:21:07.175 | INFO     | __main__:train:291 - Step 64: Commencing data collection
+2026-11-02 19:21:07.176 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 19:21:16.440 | INFO     | __main__:train:312 - Step 64: Commencing model learning
+2026-11-02 19:23:36.938 | INFO     | __main__:train:291 - Step 65: Commencing data collection
+2026-11-02 19:23:36.938 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 19:23:46.112 | INFO     | __main__:train:312 - Step 65: Commencing model learning
+2026-11-02 19:26:06.934 | INFO     | __main__:train:291 - Step 66: Commencing data collection
+2026-11-02 19:26:06.934 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 19:26:16.042 | INFO     | __main__:train:312 - Step 66: Commencing model learning
+2026-11-02 19:28:37.040 | INFO     | __main__:train:291 - Step 67: Commencing data collection
+2026-11-02 19:28:37.040 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 19:28:46.353 | INFO     | __main__:train:312 - Step 67: Commencing model learning
+2026-11-02 19:31:07.214 | INFO     | __main__:train:291 - Step 68: Commencing data collection
+2026-11-02 19:31:07.214 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 19:31:16.457 | INFO     | __main__:train:312 - Step 68: Commencing model learning
+2026-11-02 19:33:37.011 | INFO     | __main__:train:291 - Step 69: Commencing data collection
+2026-11-02 19:33:37.011 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 19:33:46.068 | INFO     | __main__:train:312 - Step 69: Commencing model learning
+2026-11-02 19:36:06.852 | INFO     | __main__:train:291 - Step 70: Commencing data collection
+2026-11-02 19:36:06.852 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 19:36:15.925 | INFO     | __main__:train:312 - Step 70: Commencing model learning
+2026-11-02 19:38:36.455 | INFO     | __main__:train:291 - Step 71: Commencing data collection
+2026-11-02 19:38:36.455 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 19:38:45.544 | INFO     | __main__:train:312 - Step 71: Commencing model learning
+2026-11-02 19:41:07.571 | INFO     | __main__:eval_step:176 - Beginning eval step
+2026-11-02 19:41:07.579 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 64 rollouts of 1000 transitions
+wandb: Encoding video...
+2026-11-02 19:42:21.808 | INFO     | __main__:eval_step:197 - Eval step completed with mean return 863.02
+2026-11-02 19:42:24.507 | INFO     | __main__:train:291 - Step 72: Commencing data collection
+2026-11-02 19:42:24.507 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 19:42:33.615 | INFO     | __main__:train:312 - Step 72: Commencing model learning
+2026-11-02 19:44:53.858 | INFO     | __main__:train:291 - Step 73: Commencing data collection
+2026-11-02 19:44:53.858 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 19:45:02.873 | INFO     | __main__:train:312 - Step 73: Commencing model learning
+2026-11-02 19:47:23.640 | INFO     | __main__:train:291 - Step 74: Commencing data collection
+2026-11-02 19:47:23.640 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 19:47:32.487 | INFO     | __main__:train:312 - Step 74: Commencing model learning
+2026-11-02 19:49:53.013 | INFO     | __main__:train:291 - Step 75: Commencing data collection
+2026-11-02 19:49:53.014 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 19:50:01.998 | INFO     | __main__:train:312 - Step 75: Commencing model learning
+2026-11-02 19:52:22.459 | INFO     | __main__:train:291 - Step 76: Commencing data collection
+2026-11-02 19:52:22.459 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 19:52:31.542 | INFO     | __main__:train:312 - Step 76: Commencing model learning
+2026-11-02 19:54:53.075 | INFO     | __main__:train:291 - Step 77: Commencing data collection
+2026-11-02 19:54:53.076 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 19:55:02.131 | INFO     | __main__:train:312 - Step 77: Commencing model learning
+2026-11-02 19:57:22.999 | INFO     | __main__:train:291 - Step 78: Commencing data collection
+2026-11-02 19:57:22.999 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 19:57:31.982 | INFO     | __main__:train:312 - Step 78: Commencing model learning
+2026-11-02 19:59:52.597 | INFO     | __main__:train:291 - Step 79: Commencing data collection
+2026-11-02 19:59:52.598 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:00:01.646 | INFO     | __main__:train:312 - Step 79: Commencing model learning
+2026-11-02 20:02:22.196 | INFO     | __main__:train:291 - Step 80: Commencing data collection
+2026-11-02 20:02:22.196 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:02:31.205 | INFO     | __main__:train:312 - Step 80: Commencing model learning
+2026-11-02 20:04:51.813 | INFO     | __main__:train:291 - Step 81: Commencing data collection
+2026-11-02 20:04:51.813 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:05:00.737 | INFO     | __main__:train:312 - Step 81: Commencing model learning
+2026-11-02 20:07:22.058 | INFO     | __main__:eval_step:176 - Beginning eval step
+2026-11-02 20:07:22.066 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 64 rollouts of 1000 transitions
+wandb: Encoding video...
+2026-11-02 20:08:35.892 | INFO     | __main__:eval_step:197 - Eval step completed with mean return 864.84
+2026-11-02 20:08:38.126 | INFO     | __main__:train:291 - Step 82: Commencing data collection
+2026-11-02 20:08:38.126 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:08:47.290 | INFO     | __main__:train:312 - Step 82: Commencing model learning
+2026-11-02 20:11:07.596 | INFO     | __main__:train:291 - Step 83: Commencing data collection
+2026-11-02 20:11:07.596 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:11:16.597 | INFO     | __main__:train:312 - Step 83: Commencing model learning
+2026-11-02 20:13:37.411 | INFO     | __main__:train:291 - Step 84: Commencing data collection
+2026-11-02 20:13:37.411 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:13:46.454 | INFO     | __main__:train:312 - Step 84: Commencing model learning
+2026-11-02 20:16:07.039 | INFO     | __main__:train:291 - Step 85: Commencing data collection
+2026-11-02 20:16:07.039 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:16:15.987 | INFO     | __main__:train:312 - Step 85: Commencing model learning
+2026-11-02 20:18:36.480 | INFO     | __main__:train:291 - Step 86: Commencing data collection
+2026-11-02 20:18:36.480 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:18:45.446 | INFO     | __main__:train:312 - Step 86: Commencing model learning
+2026-11-02 20:21:06.317 | INFO     | __main__:train:291 - Step 87: Commencing data collection
+2026-11-02 20:21:06.317 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:21:15.347 | INFO     | __main__:train:312 - Step 87: Commencing model learning
+2026-11-02 20:23:35.791 | INFO     | __main__:train:291 - Step 88: Commencing data collection
+2026-11-02 20:23:35.792 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:23:44.882 | INFO     | __main__:train:312 - Step 88: Commencing model learning
+2026-11-02 20:26:05.488 | INFO     | __main__:train:291 - Step 89: Commencing data collection
+2026-11-02 20:26:05.488 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:26:14.421 | INFO     | __main__:train:312 - Step 89: Commencing model learning
+2026-11-02 20:28:35.271 | INFO     | __main__:train:291 - Step 90: Commencing data collection
+2026-11-02 20:28:35.271 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:28:44.213 | INFO     | __main__:train:312 - Step 90: Commencing model learning
+2026-11-02 20:31:04.744 | INFO     | __main__:train:291 - Step 91: Commencing data collection
+2026-11-02 20:31:04.744 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:31:13.678 | INFO     | __main__:train:312 - Step 91: Commencing model learning
+2026-11-02 20:33:35.523 | INFO     | __main__:eval_step:176 - Beginning eval step
+2026-11-02 20:33:35.531 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 64 rollouts of 1000 transitions
+wandb: Encoding video...
+2026-11-02 20:34:49.108 | INFO     | __main__:eval_step:197 - Eval step completed with mean return 855.83
+2026-11-02 20:34:51.609 | INFO     | __main__:train:291 - Step 92: Commencing data collection
+2026-11-02 20:34:51.609 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:35:00.706 | INFO     | __main__:train:312 - Step 92: Commencing model learning
+2026-11-02 20:37:20.997 | INFO     | __main__:train:291 - Step 93: Commencing data collection
+2026-11-02 20:37:20.997 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:37:29.951 | INFO     | __main__:train:312 - Step 93: Commencing model learning
+2026-11-02 20:39:50.473 | INFO     | __main__:train:291 - Step 94: Commencing data collection
+2026-11-02 20:39:50.473 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:39:59.435 | INFO     | __main__:train:312 - Step 94: Commencing model learning
+2026-11-02 20:42:20.028 | INFO     | __main__:train:291 - Step 95: Commencing data collection
+2026-11-02 20:42:20.028 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:42:29.017 | INFO     | __main__:train:312 - Step 95: Commencing model learning
+2026-11-02 20:44:49.850 | INFO     | __main__:train:291 - Step 96: Commencing data collection
+2026-11-02 20:44:49.851 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:44:58.894 | INFO     | __main__:train:312 - Step 96: Commencing model learning
+2026-11-02 20:47:19.868 | INFO     | __main__:train:291 - Step 97: Commencing data collection
+2026-11-02 20:47:19.868 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:47:29.009 | INFO     | __main__:train:312 - Step 97: Commencing model learning
+2026-11-02 20:49:49.546 | INFO     | __main__:train:291 - Step 98: Commencing data collection
+2026-11-02 20:49:49.546 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:49:58.607 | INFO     | __main__:train:312 - Step 98: Commencing model learning
+2026-11-02 20:52:19.260 | INFO     | __main__:train:291 - Step 99: Commencing data collection
+2026-11-02 20:52:19.260 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:52:28.316 | INFO     | __main__:train:312 - Step 99: Commencing model learning
+2026-11-02 20:54:48.820 | INFO     | __main__:train:291 - Step 100: Commencing data collection
+2026-11-02 20:54:48.820 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:54:57.760 | INFO     | __main__:train:312 - Step 100: Commencing model learning
+2026-11-02 20:57:18.469 | INFO     | __main__:train:291 - Step 101: Commencing data collection
+2026-11-02 20:57:18.469 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 20:57:27.452 | INFO     | __main__:train:312 - Step 101: Commencing model learning
+2026-11-02 20:59:48.583 | INFO     | __main__:eval_step:176 - Beginning eval step
+2026-11-02 20:59:48.591 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 64 rollouts of 1000 transitions
+wandb: Encoding video...
+2026-11-02 21:01:02.092 | INFO     | __main__:eval_step:197 - Eval step completed with mean return 893.80
+2026-11-02 21:01:03.922 | INFO     | __main__:train:291 - Step 102: Commencing data collection
+2026-11-02 21:01:03.922 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:01:12.959 | INFO     | __main__:train:312 - Step 102: Commencing model learning
+2026-11-02 21:03:33.278 | INFO     | __main__:train:291 - Step 103: Commencing data collection
+2026-11-02 21:03:33.278 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:03:42.409 | INFO     | __main__:train:312 - Step 103: Commencing model learning
+2026-11-02 21:06:02.969 | INFO     | __main__:train:291 - Step 104: Commencing data collection
+2026-11-02 21:06:02.970 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:06:11.886 | INFO     | __main__:train:312 - Step 104: Commencing model learning
+2026-11-02 21:08:32.467 | INFO     | __main__:train:291 - Step 105: Commencing data collection
+2026-11-02 21:08:32.468 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:08:41.558 | INFO     | __main__:train:312 - Step 105: Commencing model learning
+2026-11-02 21:11:01.889 | INFO     | __main__:train:291 - Step 106: Commencing data collection
+2026-11-02 21:11:01.889 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:11:10.892 | INFO     | __main__:train:312 - Step 106: Commencing model learning
+2026-11-02 21:13:48.031 | INFO     | __main__:train:291 - Step 107: Commencing data collection
+2026-11-02 21:13:48.031 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:13:56.945 | INFO     | __main__:train:312 - Step 107: Commencing model learning
+2026-11-02 21:16:17.107 | INFO     | __main__:train:291 - Step 108: Commencing data collection
+2026-11-02 21:16:17.107 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:16:26.192 | INFO     | __main__:train:312 - Step 108: Commencing model learning
+2026-11-02 21:18:46.807 | INFO     | __main__:train:291 - Step 109: Commencing data collection
+2026-11-02 21:18:46.807 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:18:55.851 | INFO     | __main__:train:312 - Step 109: Commencing model learning
+2026-11-02 21:21:16.134 | INFO     | __main__:train:291 - Step 110: Commencing data collection
+2026-11-02 21:21:16.134 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:21:25.102 | INFO     | __main__:train:312 - Step 110: Commencing model learning
+2026-11-02 21:23:45.791 | INFO     | __main__:train:291 - Step 111: Commencing data collection
+2026-11-02 21:23:45.792 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:23:54.789 | INFO     | __main__:train:312 - Step 111: Commencing model learning
+2026-11-02 21:26:16.033 | INFO     | __main__:eval_step:176 - Beginning eval step
+2026-11-02 21:26:16.041 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 64 rollouts of 1000 transitions
+wandb: Encoding video...
+2026-11-02 21:27:30.043 | INFO     | __main__:eval_step:197 - Eval step completed with mean return 892.25
+2026-11-02 21:27:32.677 | INFO     | __main__:train:291 - Step 112: Commencing data collection
+2026-11-02 21:27:32.677 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:27:41.628 | INFO     | __main__:train:312 - Step 112: Commencing model learning
+2026-11-02 21:30:01.941 | INFO     | __main__:train:291 - Step 113: Commencing data collection
+2026-11-02 21:30:01.941 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:30:10.911 | INFO     | __main__:train:312 - Step 113: Commencing model learning
+2026-11-02 21:32:31.618 | INFO     | __main__:train:291 - Step 114: Commencing data collection
+2026-11-02 21:32:31.618 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:32:40.621 | INFO     | __main__:train:312 - Step 114: Commencing model learning
+2026-11-02 21:35:01.174 | INFO     | __main__:train:291 - Step 115: Commencing data collection
+2026-11-02 21:35:01.174 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:35:10.064 | INFO     | __main__:train:312 - Step 115: Commencing model learning
+2026-11-02 21:37:30.394 | INFO     | __main__:train:291 - Step 116: Commencing data collection
+2026-11-02 21:37:30.394 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:37:39.438 | INFO     | __main__:train:312 - Step 116: Commencing model learning
+2026-11-02 21:40:13.484 | INFO     | __main__:train:291 - Step 117: Commencing data collection
+2026-11-02 21:40:13.484 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:40:22.533 | INFO     | __main__:train:312 - Step 117: Commencing model learning
+2026-11-02 21:42:42.727 | INFO     | __main__:train:291 - Step 118: Commencing data collection
+2026-11-02 21:42:42.727 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:42:51.670 | INFO     | __main__:train:312 - Step 118: Commencing model learning
+2026-11-02 21:45:12.362 | INFO     | __main__:train:291 - Step 119: Commencing data collection
+2026-11-02 21:45:12.362 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:45:21.282 | INFO     | __main__:train:312 - Step 119: Commencing model learning
+2026-11-02 21:47:41.563 | INFO     | __main__:train:291 - Step 120: Commencing data collection
+2026-11-02 21:47:41.563 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:47:50.578 | INFO     | __main__:train:312 - Step 120: Commencing model learning
+2026-11-02 21:50:11.234 | INFO     | __main__:train:291 - Step 121: Commencing data collection
+2026-11-02 21:50:11.235 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:50:20.271 | INFO     | __main__:train:312 - Step 121: Commencing model learning
+2026-11-02 21:52:41.952 | INFO     | __main__:eval_step:176 - Beginning eval step
+2026-11-02 21:52:41.960 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 64 rollouts of 1000 transitions
+wandb: Encoding video...
+2026-11-02 21:53:55.557 | INFO     | __main__:eval_step:197 - Eval step completed with mean return 851.66
+2026-11-02 21:53:58.659 | INFO     | __main__:train:291 - Step 122: Commencing data collection
+2026-11-02 21:53:58.659 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:54:07.608 | INFO     | __main__:train:312 - Step 122: Commencing model learning
+2026-11-02 21:56:27.986 | INFO     | __main__:train:291 - Step 123: Commencing data collection
+2026-11-02 21:56:27.986 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:56:36.937 | INFO     | __main__:train:312 - Step 123: Commencing model learning
+2026-11-02 21:58:57.221 | INFO     | __main__:train:291 - Step 124: Commencing data collection
+2026-11-02 21:58:57.222 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 21:59:06.201 | INFO     | __main__:train:312 - Step 124: Commencing model learning
+2026-11-02 22:01:26.887 | INFO     | __main__:train:291 - Step 125: Commencing data collection
+2026-11-02 22:01:26.887 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:01:35.875 | INFO     | __main__:train:312 - Step 125: Commencing model learning
+2026-11-02 22:03:56.318 | INFO     | __main__:train:291 - Step 126: Commencing data collection
+2026-11-02 22:03:56.318 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:04:05.251 | INFO     | __main__:train:312 - Step 126: Commencing model learning
+2026-11-02 22:06:44.926 | INFO     | __main__:train:291 - Step 127: Commencing data collection
+2026-11-02 22:06:44.926 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:06:54.042 | INFO     | __main__:train:312 - Step 127: Commencing model learning
+2026-11-02 22:09:13.744 | INFO     | __main__:train:291 - Step 128: Commencing data collection
+2026-11-02 22:09:13.745 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:09:22.747 | INFO     | __main__:train:312 - Step 128: Commencing model learning
+2026-11-02 22:11:42.920 | INFO     | __main__:train:291 - Step 129: Commencing data collection
+2026-11-02 22:11:42.921 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:11:51.947 | INFO     | __main__:train:312 - Step 129: Commencing model learning
+2026-11-02 22:14:11.757 | INFO     | __main__:train:291 - Step 130: Commencing data collection
+2026-11-02 22:14:11.757 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:14:20.826 | INFO     | __main__:train:312 - Step 130: Commencing model learning
+2026-11-02 22:16:41.037 | INFO     | __main__:train:291 - Step 131: Commencing data collection
+2026-11-02 22:16:41.037 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:16:49.996 | INFO     | __main__:train:312 - Step 131: Commencing model learning
+2026-11-02 22:19:10.622 | INFO     | __main__:eval_step:176 - Beginning eval step
+2026-11-02 22:19:10.630 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 64 rollouts of 1000 transitions
+wandb: Encoding video...
+2026-11-02 22:20:23.972 | INFO     | __main__:eval_step:197 - Eval step completed with mean return 803.81
+2026-11-02 22:20:25.922 | INFO     | __main__:train:291 - Step 132: Commencing data collection
+2026-11-02 22:20:25.922 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:20:34.858 | INFO     | __main__:train:312 - Step 132: Commencing model learning
+2026-11-02 22:22:54.732 | INFO     | __main__:train:291 - Step 133: Commencing data collection
+2026-11-02 22:22:54.732 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:23:03.742 | INFO     | __main__:train:312 - Step 133: Commencing model learning
+2026-11-02 22:25:23.570 | INFO     | __main__:train:291 - Step 134: Commencing data collection
+2026-11-02 22:25:23.570 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:25:32.600 | INFO     | __main__:train:312 - Step 134: Commencing model learning
+2026-11-02 22:27:52.813 | INFO     | __main__:train:291 - Step 135: Commencing data collection
+2026-11-02 22:27:52.813 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:28:01.733 | INFO     | __main__:train:312 - Step 135: Commencing model learning
+2026-11-02 22:30:21.562 | INFO     | __main__:train:291 - Step 136: Commencing data collection
+2026-11-02 22:30:21.562 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:30:30.494 | INFO     | __main__:train:312 - Step 136: Commencing model learning
+2026-11-02 22:32:51.197 | INFO     | __main__:train:291 - Step 137: Commencing data collection
+2026-11-02 22:32:51.198 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:33:00.200 | INFO     | __main__:train:312 - Step 137: Commencing model learning
+2026-11-02 22:35:20.189 | INFO     | __main__:train:291 - Step 138: Commencing data collection
+2026-11-02 22:35:20.190 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:35:29.130 | INFO     | __main__:train:312 - Step 138: Commencing model learning
+2026-11-02 22:37:49.448 | INFO     | __main__:train:291 - Step 139: Commencing data collection
+2026-11-02 22:37:49.448 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:37:58.290 | INFO     | __main__:train:312 - Step 139: Commencing model learning
+2026-11-02 22:40:18.526 | INFO     | __main__:train:291 - Step 140: Commencing data collection
+2026-11-02 22:40:18.526 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:40:27.477 | INFO     | __main__:train:312 - Step 140: Commencing model learning
+2026-11-02 22:42:47.617 | INFO     | __main__:train:291 - Step 141: Commencing data collection
+2026-11-02 22:42:47.618 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:42:56.616 | INFO     | __main__:train:312 - Step 141: Commencing model learning
+2026-11-02 22:45:16.864 | INFO     | __main__:eval_step:176 - Beginning eval step
+2026-11-02 22:45:16.872 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 64 rollouts of 1000 transitions
+wandb: Encoding video...
+2026-11-02 22:46:29.955 | INFO     | __main__:eval_step:197 - Eval step completed with mean return 865.05
+2026-11-02 22:46:32.562 | INFO     | __main__:train:291 - Step 142: Commencing data collection
+2026-11-02 22:46:32.562 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:46:41.449 | INFO     | __main__:train:312 - Step 142: Commencing model learning
+2026-11-02 22:49:01.428 | INFO     | __main__:train:291 - Step 143: Commencing data collection
+2026-11-02 22:49:01.429 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:49:10.344 | INFO     | __main__:train:312 - Step 143: Commencing model learning
+2026-11-02 22:51:30.203 | INFO     | __main__:train:291 - Step 144: Commencing data collection
+2026-11-02 22:51:30.203 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:51:39.224 | INFO     | __main__:train:312 - Step 144: Commencing model learning
+2026-11-02 22:53:59.468 | INFO     | __main__:train:291 - Step 145: Commencing data collection
+2026-11-02 22:53:59.468 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:54:08.403 | INFO     | __main__:train:312 - Step 145: Commencing model learning
+2026-11-02 22:56:28.620 | INFO     | __main__:train:291 - Step 146: Commencing data collection
+2026-11-02 22:56:28.621 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:56:37.553 | INFO     | __main__:train:312 - Step 146: Commencing model learning
+2026-11-02 22:58:58.266 | INFO     | __main__:train:291 - Step 147: Commencing data collection
+2026-11-02 22:58:58.267 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 22:59:07.141 | INFO     | __main__:train:312 - Step 147: Commencing model learning
+2026-11-02 23:01:27.007 | INFO     | __main__:train:291 - Step 148: Commencing data collection
+2026-11-02 23:01:27.008 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:01:36.011 | INFO     | __main__:train:312 - Step 148: Commencing model learning
+2026-11-02 23:03:56.322 | INFO     | __main__:train:291 - Step 149: Commencing data collection
+2026-11-02 23:03:56.322 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:04:05.281 | INFO     | __main__:train:312 - Step 149: Commencing model learning
+2026-11-02 23:06:25.113 | INFO     | __main__:train:291 - Step 150: Commencing data collection
+2026-11-02 23:06:25.113 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:06:34.145 | INFO     | __main__:train:312 - Step 150: Commencing model learning
+2026-11-02 23:08:54.332 | INFO     | __main__:train:291 - Step 151: Commencing data collection
+2026-11-02 23:08:54.332 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:09:03.374 | INFO     | __main__:train:312 - Step 151: Commencing model learning
+2026-11-02 23:11:24.211 | INFO     | __main__:eval_step:176 - Beginning eval step
+2026-11-02 23:11:24.219 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 64 rollouts of 1000 transitions
+wandb: Encoding video...
+2026-11-02 23:12:37.327 | INFO     | __main__:eval_step:197 - Eval step completed with mean return 849.57
+2026-11-02 23:12:39.940 | INFO     | __main__:train:291 - Step 152: Commencing data collection
+2026-11-02 23:12:39.941 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:12:48.847 | INFO     | __main__:train:312 - Step 152: Commencing model learning
+2026-11-02 23:15:08.798 | INFO     | __main__:train:291 - Step 153: Commencing data collection
+2026-11-02 23:15:08.798 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:15:17.772 | INFO     | __main__:train:312 - Step 153: Commencing model learning
+2026-11-02 23:17:37.732 | INFO     | __main__:train:291 - Step 154: Commencing data collection
+2026-11-02 23:17:37.732 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:17:46.682 | INFO     | __main__:train:312 - Step 154: Commencing model learning
+2026-11-02 23:20:06.838 | INFO     | __main__:train:291 - Step 155: Commencing data collection
+2026-11-02 23:20:06.838 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:20:15.754 | INFO     | __main__:train:312 - Step 155: Commencing model learning
+2026-11-02 23:22:35.867 | INFO     | __main__:train:291 - Step 156: Commencing data collection
+2026-11-02 23:22:35.867 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:22:44.818 | INFO     | __main__:train:312 - Step 156: Commencing model learning
+2026-11-02 23:25:05.191 | INFO     | __main__:train:291 - Step 157: Commencing data collection
+2026-11-02 23:25:05.191 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:25:14.068 | INFO     | __main__:train:312 - Step 157: Commencing model learning
+2026-11-02 23:27:33.892 | INFO     | __main__:train:291 - Step 158: Commencing data collection
+2026-11-02 23:27:33.893 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:27:42.803 | INFO     | __main__:train:312 - Step 158: Commencing model learning
+2026-11-02 23:30:03.109 | INFO     | __main__:train:291 - Step 159: Commencing data collection
+2026-11-02 23:30:03.109 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:30:12.108 | INFO     | __main__:train:312 - Step 159: Commencing model learning
+2026-11-02 23:32:31.943 | INFO     | __main__:train:291 - Step 160: Commencing data collection
+2026-11-02 23:32:31.943 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:32:40.900 | INFO     | __main__:train:312 - Step 160: Commencing model learning
+2026-11-02 23:35:01.185 | INFO     | __main__:train:291 - Step 161: Commencing data collection
+2026-11-02 23:35:01.185 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:35:10.131 | INFO     | __main__:train:312 - Step 161: Commencing model learning
+2026-11-02 23:37:31.274 | INFO     | __main__:eval_step:176 - Beginning eval step
+2026-11-02 23:37:31.283 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 64 rollouts of 1000 transitions
+wandb: Encoding video...
+2026-11-02 23:38:43.912 | INFO     | __main__:eval_step:197 - Eval step completed with mean return 869.08
+2026-11-02 23:38:47.045 | INFO     | __main__:train:291 - Step 162: Commencing data collection
+2026-11-02 23:38:47.045 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:38:56.034 | INFO     | __main__:train:312 - Step 162: Commencing model learning
+2026-11-02 23:41:16.065 | INFO     | __main__:train:291 - Step 163: Commencing data collection
+2026-11-02 23:41:16.066 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:41:25.082 | INFO     | __main__:train:312 - Step 163: Commencing model learning
+2026-11-02 23:43:44.883 | INFO     | __main__:train:291 - Step 164: Commencing data collection
+2026-11-02 23:43:44.883 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:43:54.271 | INFO     | __main__:train:312 - Step 164: Commencing model learning
+2026-11-02 23:46:14.480 | INFO     | __main__:train:291 - Step 165: Commencing data collection
+2026-11-02 23:46:14.480 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:46:23.592 | INFO     | __main__:train:312 - Step 165: Commencing model learning
+2026-11-02 23:48:43.397 | INFO     | __main__:train:291 - Step 166: Commencing data collection
+2026-11-02 23:48:43.397 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:48:52.439 | INFO     | __main__:train:312 - Step 166: Commencing model learning
+2026-11-02 23:51:12.870 | INFO     | __main__:train:291 - Step 167: Commencing data collection
+2026-11-02 23:51:12.870 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:51:21.921 | INFO     | __main__:train:312 - Step 167: Commencing model learning
+2026-11-02 23:53:41.938 | INFO     | __main__:train:291 - Step 168: Commencing data collection
+2026-11-02 23:53:41.938 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:53:50.923 | INFO     | __main__:train:312 - Step 168: Commencing model learning
+2026-11-02 23:56:11.155 | INFO     | __main__:train:291 - Step 169: Commencing data collection
+2026-11-02 23:56:11.155 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:56:20.189 | INFO     | __main__:train:312 - Step 169: Commencing model learning
+2026-11-02 23:58:39.982 | INFO     | __main__:train:291 - Step 170: Commencing data collection
+2026-11-02 23:58:39.983 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-02 23:58:48.959 | INFO     | __main__:train:312 - Step 170: Commencing model learning
+2026-11-03 00:01:09.096 | INFO     | __main__:train:291 - Step 171: Commencing data collection
+2026-11-03 00:01:09.096 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:01:18.081 | INFO     | __main__:train:312 - Step 171: Commencing model learning
+2026-11-03 00:03:38.148 | INFO     | __main__:eval_step:176 - Beginning eval step
+2026-11-03 00:03:38.156 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 64 rollouts of 1000 transitions
+wandb: Encoding video...
+2026-11-03 00:04:51.521 | INFO     | __main__:eval_step:197 - Eval step completed with mean return 876.04
+2026-11-03 00:04:53.835 | INFO     | __main__:train:291 - Step 172: Commencing data collection
+2026-11-03 00:04:53.835 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:05:02.798 | INFO     | __main__:train:312 - Step 172: Commencing model learning
+2026-11-03 00:07:22.774 | INFO     | __main__:train:291 - Step 173: Commencing data collection
+2026-11-03 00:07:22.774 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:07:31.900 | INFO     | __main__:train:312 - Step 173: Commencing model learning
+2026-11-03 00:09:51.667 | INFO     | __main__:train:291 - Step 174: Commencing data collection
+2026-11-03 00:09:51.667 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:10:00.801 | INFO     | __main__:train:312 - Step 174: Commencing model learning
+2026-11-03 00:12:20.995 | INFO     | __main__:train:291 - Step 175: Commencing data collection
+2026-11-03 00:12:20.996 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:12:30.063 | INFO     | __main__:train:312 - Step 175: Commencing model learning
+2026-11-03 00:14:49.988 | INFO     | __main__:train:291 - Step 176: Commencing data collection
+2026-11-03 00:14:49.988 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:14:58.937 | INFO     | __main__:train:312 - Step 176: Commencing model learning
+2026-11-03 00:17:19.355 | INFO     | __main__:train:291 - Step 177: Commencing data collection
+2026-11-03 00:17:19.355 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:17:28.383 | INFO     | __main__:train:312 - Step 177: Commencing model learning
+2026-11-03 00:19:48.206 | INFO     | __main__:train:291 - Step 178: Commencing data collection
+2026-11-03 00:19:48.206 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:19:57.274 | INFO     | __main__:train:312 - Step 178: Commencing model learning
+2026-11-03 00:22:17.495 | INFO     | __main__:train:291 - Step 179: Commencing data collection
+2026-11-03 00:22:17.495 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:22:26.554 | INFO     | __main__:train:312 - Step 179: Commencing model learning
+2026-11-03 00:24:46.500 | INFO     | __main__:train:291 - Step 180: Commencing data collection
+2026-11-03 00:24:46.500 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:24:55.522 | INFO     | __main__:train:312 - Step 180: Commencing model learning
+2026-11-03 00:27:15.776 | INFO     | __main__:train:291 - Step 181: Commencing data collection
+2026-11-03 00:27:15.777 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:27:24.702 | INFO     | __main__:train:312 - Step 181: Commencing model learning
+2026-11-03 00:29:45.213 | INFO     | __main__:eval_step:176 - Beginning eval step
+2026-11-03 00:29:45.221 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 64 rollouts of 1000 transitions
+wandb: Encoding video...
+2026-11-03 00:30:58.174 | INFO     | __main__:eval_step:197 - Eval step completed with mean return 877.98
+2026-11-03 00:31:00.980 | INFO     | __main__:train:291 - Step 182: Commencing data collection
+2026-11-03 00:31:00.980 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:31:10.095 | INFO     | __main__:train:312 - Step 182: Commencing model learning
+2026-11-03 00:33:30.145 | INFO     | __main__:train:291 - Step 183: Commencing data collection
+2026-11-03 00:33:30.145 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:33:39.044 | INFO     | __main__:train:312 - Step 183: Commencing model learning
+2026-11-03 00:35:58.883 | INFO     | __main__:train:291 - Step 184: Commencing data collection
+2026-11-03 00:35:58.884 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:36:07.879 | INFO     | __main__:train:312 - Step 184: Commencing model learning
+2026-11-03 00:38:28.023 | INFO     | __main__:train:291 - Step 185: Commencing data collection
+2026-11-03 00:38:28.024 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:38:36.945 | INFO     | __main__:train:312 - Step 185: Commencing model learning
+2026-11-03 00:40:56.851 | INFO     | __main__:train:291 - Step 186: Commencing data collection
+2026-11-03 00:40:56.851 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:41:05.918 | INFO     | __main__:train:312 - Step 186: Commencing model learning
+2026-11-03 00:43:26.397 | INFO     | __main__:train:291 - Step 187: Commencing data collection
+2026-11-03 00:43:26.397 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:43:35.233 | INFO     | __main__:train:312 - Step 187: Commencing model learning
+2026-11-03 00:45:55.026 | INFO     | __main__:train:291 - Step 188: Commencing data collection
+2026-11-03 00:45:55.027 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:46:03.957 | INFO     | __main__:train:312 - Step 188: Commencing model learning
+2026-11-03 00:48:24.341 | INFO     | __main__:train:291 - Step 189: Commencing data collection
+2026-11-03 00:48:24.341 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:48:33.347 | INFO     | __main__:train:312 - Step 189: Commencing model learning
+2026-11-03 00:50:53.148 | INFO     | __main__:train:291 - Step 190: Commencing data collection
+2026-11-03 00:50:53.148 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:51:02.211 | INFO     | __main__:train:312 - Step 190: Commencing model learning
+2026-11-03 00:53:22.583 | INFO     | __main__:train:291 - Step 191: Commencing data collection
+2026-11-03 00:53:22.583 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:53:31.505 | INFO     | __main__:train:312 - Step 191: Commencing model learning
+2026-11-03 00:55:51.579 | INFO     | __main__:eval_step:176 - Beginning eval step
+2026-11-03 00:55:51.587 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 64 rollouts of 1000 transitions
+wandb: Encoding video...
+2026-11-03 00:57:03.663 | INFO     | __main__:eval_step:197 - Eval step completed with mean return 756.69
+2026-11-03 00:57:06.169 | INFO     | __main__:train:291 - Step 192: Commencing data collection
+2026-11-03 00:57:06.169 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:57:15.142 | INFO     | __main__:train:312 - Step 192: Commencing model learning
+2026-11-03 00:59:35.316 | INFO     | __main__:train:291 - Step 193: Commencing data collection
+2026-11-03 00:59:35.316 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 00:59:44.183 | INFO     | __main__:train:312 - Step 193: Commencing model learning
+2026-11-03 01:02:04.035 | INFO     | __main__:train:291 - Step 194: Commencing data collection
+2026-11-03 01:02:04.035 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 01:02:12.893 | INFO     | __main__:train:312 - Step 194: Commencing model learning
+2026-11-03 01:04:33.259 | INFO     | __main__:train:291 - Step 195: Commencing data collection
+2026-11-03 01:04:33.260 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 01:04:42.269 | INFO     | __main__:train:312 - Step 195: Commencing model learning
+2026-11-03 01:07:02.097 | INFO     | __main__:train:291 - Step 196: Commencing data collection
+2026-11-03 01:07:02.097 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 01:07:11.194 | INFO     | __main__:train:312 - Step 196: Commencing model learning
+2026-11-03 01:09:32.131 | INFO     | __main__:train:291 - Step 197: Commencing data collection
+2026-11-03 01:09:32.131 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 01:09:41.094 | INFO     | __main__:train:312 - Step 197: Commencing model learning
+2026-11-03 01:12:00.936 | INFO     | __main__:train:291 - Step 198: Commencing data collection
+2026-11-03 01:12:00.936 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 01:12:10.177 | INFO     | __main__:train:312 - Step 198: Commencing model learning
+2026-11-03 01:14:30.243 | INFO     | __main__:train:291 - Step 199: Commencing data collection
+2026-11-03 01:14:30.243 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 01:14:39.289 | INFO     | __main__:train:312 - Step 199: Commencing model learning
+2026-11-03 01:16:59.346 | INFO     | __main__:train:291 - Step 200: Commencing data collection
+2026-11-03 01:16:59.346 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 8 rollouts of 1000 transitions
+2026-11-03 01:17:08.390 | INFO     | __main__:train:312 - Step 200: Commencing model learning
+2026-11-03 01:19:28.799 | INFO     | __main__:eval_step:176 - Beginning eval step
+2026-11-03 01:19:28.807 | INFO     | dreamer.buffer:collect_new_rollouts:254 - Collecting 64 rollouts of 1000 transitions
+wandb: Encoding video...
+2026-11-03 01:20:42.887 | INFO     | __main__:eval_step:197 - Eval step completed with mean return 874.71
+wandb: updating run metadata; uploading artifact run-f3bqo4fm-evalcriticreturn_components_table-JEBdqQ; uploading artifact run-f3bqo4fm-evalimaginationcontinuation_and_weights_table-KpLLyQ
+wandb: uploading media/images/eval/latents/category_usage_400220_123dc489102dace56634.png; uploading media/table/eval/critic/predictions_table_400220_c662d1f67603de451caa.table.json; uploading media/table/eval/critic/return_components_table_400220_697d99cc5144a7334bfa.table.json
+wandb: uploading media/videos/eval/policy_400220_fb49e3b15632151f68e7.gif
+wandb: 
+wandb: Run history:
+wandb:      ac/actor/entropy_loss █▇▇▃▄▄▃▃▃▃▂▃▂▂▁▃▃▂▁▁▂▂▄▃▃▂▂▂▃▃▃▂▃▂▂▂▂▂▂▃
+wandb:          ac/actor/grad_max ▁▁▁▁▁▁▁▁▁▁▁▁▁▂▂▂▃▃▅▂▁▂▁▁▃▂▂▄▅▃▃▂▃▁▂▂▂▁█▁
+wandb:         ac/actor/grad_norm ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▁▂▃▂▃▂▃▄▆▁▆▄▁▄▂▆▂▃▁▃█
+wandb:              ac/actor/loss █████▇▆▆▄▃▁▂▁▂▂▁▂▂▂▂▂▂▂▂▂▂▂▂▃▃▃▂▃▃▂▃▂▂▂▂
+wandb:       ac/actor/reward_loss ████▇▄▂▁▂▂▁▁▂▂▂▃▁▁▂▂▂▂▂▂▂▁▂▂▂▂▂▃▃▂▂▂▁▁▂▂
+wandb:         ac/critic/grad_max ▁▁▁▁▃▂▄▃▆▂▃▁▄▂▂▅▃▄▃▇▅▄▃▄▃▄▄▃█▂▆▃▅▃▃▃▃▄▃▄
+wandb:        ac/critic/grad_norm ▁▁▁▁▁▂▂▄▃▅▃▃▄▃▃▃▅▃▃█▃▃▄▅▅█▄▅▅▇▄▄▄▄▃▇▄▅▃▄
+wandb:             ac/critic/loss ▁▁▁▁▁▁▁▂▂▃▃▂▃▄▄▄▃▄▅▃█▅▄▅▅▆▇▅▇▆▅▄▇▅▅▆▅▃▄▆
+wandb:             ac/target_mean ▁▁▁▁▁▂▃▃▅▇▆▇▇▆▆▇▆▇██▇▆▇▆▆▇▇▇▇▇▇▅▇▆▆▇█▇▇▆
+wandb: eval/actions/brake_entropy ▂▁▄█▂▂▃▂▂▁▂▂▂▃▂▂▁▂▂▂▂
+wandb:                        +55 ...
+wandb: 
+wandb: Run summary:
+wandb:      ac/actor/entropy_loss 0.00275
+wandb:          ac/actor/grad_max 43.52916
+wandb:         ac/actor/grad_norm 781.11768
+wandb:              ac/actor/loss -318.68161
+wandb:       ac/actor/reward_loss -318.68436
+wandb:         ac/critic/grad_max 34.39744
+wandb:        ac/critic/grad_norm 933.23926
+wandb:             ac/critic/loss 146.11932
+wandb:             ac/target_mean 325.43323
+wandb: eval/actions/brake_entropy -2.22417
+wandb:                        +55 ...
+wandb: 
+wandb: 🚀 View run arc-9237753-long at: https://forge.coreweave.com/wandb/alex-inch-ori/dreamer-reimplementation/runs/f3bqo4fm
+wandb: ⭐️ View project at: https://forge.coreweave.com/wandb/alex-inch-ori/dreamer-reimplementation
+wandb: Synced 5 W&B file(s), 168 media file(s), 252 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20261102_163149-f3bqo4fm/logs

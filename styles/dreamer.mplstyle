@@ -1,0 +1,69 @@
+# Dreamer figures: ink on warm paper, matching the ARC evaluation plots.
+# Usage: plt.style.use(repo_root / "styles/dreamer.mplstyle")
+# Colours omit the leading # because mplstyle treats it as a comment.
+
+# Routed Gothic is used when installed; DejaVu Sans is the portable fallback.
+font.family: sans-serif
+font.sans-serif: Routed Gothic, DejaVu Sans
+font.style: normal
+font.size: 12
+text.color: 343633
+
+figure.figsize: 9, 4.8
+figure.dpi: 120
+figure.facecolor: F7F4EB
+figure.autolayout: True
+axes.facecolor: F7F4EB
+axes.labelcolor: 343633
+axes.edgecolor: 343633
+axes.labelsize: 12
+axes.labelpad: 12
+axes.titlesize: 13
+axes.titleweight: normal
+axes.titlepad: 18
+axes.axisbelow: True
+axes.spines.left: False
+axes.spines.bottom: False
+axes.spines.top: False
+axes.spines.right: False
+
+# Ink first, then a neutral and muted accent colours for multiple series.
+axes.prop_cycle: cycler('color', ['343633', 'B4B3AC', '489299', 'C34832'])
+lines.linewidth: 1.5
+lines.markersize: 4
+patch.edgecolor: F7F4EB
+patch.linewidth: 1
+
+axes.grid: True
+axes.grid.axis: y
+axes.grid.which: major
+grid.color: 343633
+grid.alpha: 0.18
+grid.linestyle: --
+grid.linewidth: 0.7
+
+xtick.color: 343633
+ytick.color: 343633
+xtick.labelsize: 11
+ytick.labelsize: 11
+xtick.major.size: 0
+ytick.major.size: 0
+xtick.minor.size: 0
+ytick.minor.size: 0
+xtick.major.pad: 8
+ytick.major.pad: 8
+
+legend.frameon: False
+legend.fontsize: 11
+
+savefig.dpi: 300
+savefig.bbox: tight
+savefig.facecolor: F7F4EB
+savefig.edgecolor: F7F4EB
+savefig.transparent: False
+svg.fonttype: none
+pdf.fonttype: 42
+ps.fonttype: 42
+
+# Per-plot settings remain explicit: axis limits, bins, integer count ticks,
+# and confidence bands (use fill_between(..., alpha=0.13, linewidth=0)).

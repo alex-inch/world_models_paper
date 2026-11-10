@@ -75,7 +75,6 @@ class Actor(nnx.Module):
 
         # The actor *maximises* the return, so we return the negative value,
         # which the optimiser will minimise, plus an entropy term to encourage exploration
-        # The hardcoded 1e-4 is from the Dreamer paper. TODO(Alex): stick it on the config
         weights = compute_step_weights(continues, cfg.discount)
         reward_loss = -(weights * td_return)
         entropy_loss = -cfg.actor_entropy_weight * (weights * action_dists.entropy())

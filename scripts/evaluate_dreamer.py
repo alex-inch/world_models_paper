@@ -6,6 +6,7 @@ it does not measure variation across independent training seeds.
 """
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from time import perf_counter
@@ -66,7 +67,7 @@ def evaluate_checkpoint(checkpoint, *, num_episodes, num_envs, max_steps, seed):
             nnx.reseed(wm, default=batch_seed)
             carry = wm.rssm.initialize_state(num_envs)
             previous_action = jnp.zeros(
-                (num_envs, wm.cfg.action_dim), dtype=jnp.float32
+                (num_envs, wm.cfg.action_dim), dtype=wm.cfg.dtype
             )
             key = jax.random.key(batch_seed)
             active = np.arange(num_envs) < count
@@ -86,13 +87,13 @@ def evaluate_checkpoint(checkpoint, *, num_episodes, num_envs, max_steps, seed):
                     action_key,
                 )
                 observation, reward, terminated, truncated, _ = envs.step(
-                    np.asarray(action)
+                    np.asarray(action, dtype=np.float32)
                 )
                 batch_returns += np.where(active, reward, 0.0)
                 batch_lengths += active
                 # Ignore autoresets and all subsequent rewards after an episode ends.
                 active &= ~(terminated | truncated)
-                previous_action = action
+                previous_action = action.astype(wm.cfg.dtype)
                 if not active.any():
                     break
 
@@ -133,6 +134,7 @@ def main(
     if output.exists():
         raise FileExistsError(f"Choose a new --output path: {output}")
     output.parent.mkdir(parents=True, exist_ok=True)
+    output.with_suffix(".pid").write_text(str(os.getpid()) + "\n")
     jax.config.update("jax_platforms", backend)
     print(f"Devices: {jax.devices()}", flush=True)
     report = {
@@ -145,6 +147,8 @@ def main(
         "bootstrap_reps": bootstrap_reps,
         "confidence_level": 0.95,
         "confidence_scope": "evaluation episodes, conditional on a fixed checkpoint",
+        "jax_version": jax.__version__,
+        "action_precision": "float32 to environment; model dtype for recurrent feedback",
         "results": [],
     }
     for checkpoint in checkpoints:
@@ -167,7 +171,9 @@ def main(
             "elapsed_seconds": perf_counter() - started,
         }
         report["results"].append(result)
-        output.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
+        temporary = output.with_name(output.name + ".tmp")
+        temporary.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
+        temporary.replace(output)
 
     print("\nCheckpoint                        Mean    Median       IQM [95% CI]")
     for result in report["results"]:
